@@ -7,7 +7,6 @@ import ResetPasswordCard from '../ResetPasswordCard';
 import MemberAssignmentsSearchCard from "../schedules/MemberAssignmentsSearchCard";
 
 
-
 export default async function AdminAreaPage() {
   const supabase = createServerComponentSupabaseClient({ cookies, headers });
   const {
