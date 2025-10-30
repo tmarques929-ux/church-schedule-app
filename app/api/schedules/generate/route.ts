@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { generateSchedule, IncompleteAvailabilityError } from '@lib/scheduleGenerator';
 import { ensureAdmin } from '../../_utils/ensureAdmin';
 

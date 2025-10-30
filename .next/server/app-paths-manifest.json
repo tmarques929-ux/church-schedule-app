@@ -1,7 +1,21 @@
 {
-  "/dashboard/availabilities/page": "app/dashboard/availabilities/page.js",
-  "/login/page": "app/login/page.js",
-  "/dashboard/page": "app/dashboard/page.js",
+  "/_not-found": "app/_not-found.js",
+  "/api/availabilities/route": "app/api/availabilities/route.js",
+  "/api/celebrations/route": "app/api/celebrations/route.js",
   "/api/ministries/route": "app/api/ministries/route.js",
-  "/dashboard/schedules/page": "app/dashboard/schedules/page.js"
+  "/api/auth/resolve/route": "app/api/auth/resolve/route.js",
+  "/api/members/search/route": "app/api/members/search/route.js",
+  "/api/schedules/[id]/route": "app/api/schedules/[id]/route.js",
+  "/api/users/route": "app/api/users/route.js",
+  "/api/schedules/generate/route": "app/api/schedules/generate/route.js",
+  "/api/schedules/publish/route": "app/api/schedules/publish/route.js",
+  "/dashboard/availabilities/page": "app/dashboard/availabilities/page.js",
+  "/dashboard/admin/page": "app/dashboard/admin/page.js",
+  "/api/users/search/route": "app/api/users/search/route.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/dashboard/celebrations/page": "app/dashboard/celebrations/page.js",
+  "/dashboard/schedules/page": "app/dashboard/schedules/page.js",
+  "/login/page": "app/login/page.js",
+  "/register/page": "app/register/page.js",
+  "/page": "app/page.js"
 }

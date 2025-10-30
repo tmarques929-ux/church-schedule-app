@@ -1,4 +1,4 @@
-﻿// File: C:\Users\tribeiro\Documents\church-schedule-app\church-schedule-app\app\api\auth\resolve\route.ts
+// File: C:\Users\tribeiro\Documents\church-schedule-app\church-schedule-app\app\api\auth\resolve\route.ts
 import * as entry from '../../../../../../app/api/auth/resolve/route.js'
 import type { NextRequest } from 'next/server.js'
 

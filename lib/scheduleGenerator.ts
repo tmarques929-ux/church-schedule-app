@@ -1,4 +1,4 @@
-﻿import { supabaseAdmin } from './supabaseServer';
+import { supabaseAdmin } from './supabaseServer';
 
 /**
  * Opcoes para geracao da escala.

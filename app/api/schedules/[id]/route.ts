@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@lib/supabaseServer';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { stringify } from 'csv-stringify/sync';
