@@ -4,7 +4,9 @@ import { createServerComponentSupabaseClient } from '@supabase/auth-helpers-next
 import Link from 'next/link';
 import ScheduleGeneratorCard from '../ScheduleGeneratorCard';
 import ResetPasswordCard from '../ResetPasswordCard';
-import MemberAssignmentsSearchCard from '../MemberAssignmentsSearchCard';
+import MemberAssignmentsSearchCard from "../schedules/MemberAssignmentsSearchCard";
+
+
 
 export default async function AdminAreaPage() {
   const supabase = createServerComponentSupabaseClient({ cookies, headers });
