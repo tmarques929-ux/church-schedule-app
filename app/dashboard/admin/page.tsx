@@ -1,4 +1,4 @@
-import { cookies, headers } from 'next/headers';
+﻿import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createServerComponentSupabaseClient } from '@supabase/auth-helpers-nextjs';
 import Link from 'next/link';

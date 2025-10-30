@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -76,11 +76,11 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} className="relative space-y-6 text-left">
               <div className="space-y-2">
                 <h2 className="text-2xl font-semibold text-white">Bem-vindo de volta</h2>
-                <p className="text-sm text-indigo-100/70">Entre com seu usuário ou email cadastrado pela liderança.</p>
+                <p className="text-sm text-indigo-100/70">Entre com seu usuÃ¡rio ou email cadastrado pela lideranÃ§a.</p>
               </div>
               {error && <p className="rounded-xl border border-rose-300/30 bg-rose-500/20 px-4 py-3 text-sm text-rose-100">{error}</p>}
               <label className="flex flex-col gap-2 text-sm text-indigo-100/80">
-                Usuário ou email
+                UsuÃ¡rio ou email
                 <input
                   type="text"
                   value={identifier}

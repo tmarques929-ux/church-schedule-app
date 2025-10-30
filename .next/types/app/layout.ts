@@ -1,4 +1,4 @@
-// File: C:\Users\tribeiro\Documents\church-schedule-app\church-schedule-app\app\layout.tsx
+﻿// File: C:\Users\tribeiro\Documents\church-schedule-app\church-schedule-app\app\layout.tsx
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

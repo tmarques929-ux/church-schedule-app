@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 
@@ -94,7 +94,7 @@ export default function MemberAssignmentsSearchCard() {
                   return (
                     <div key={`${assignment.celebration?.id}-${assignment.role?.name ?? ''}`} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-indigo-100/80">
                       <p className="font-semibold text-white">
-                        {assignment.ministry?.name ?? 'Ministerio'} � {assignment.role?.name ?? 'Funcao'}
+                        {assignment.ministry?.name ?? 'Ministerio'} · {assignment.role?.name ?? 'Funcao'}
                       </p>
                       <p>
                         {dateLabel} {timeLabel ? `- ${timeLabel}` : ''}

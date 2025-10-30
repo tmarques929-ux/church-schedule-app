@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -66,7 +66,7 @@ export default function SchedulesPage() {
     });
     const json = await response.json();
     if (!response.ok) {
-      setError(json.error || 'Erro ao gerar nova escala. Revise suas permissões ou tente novamente.');
+      setError(json.error || 'Erro ao gerar nova escala. Revise suas permissÃµes ou tente novamente.');
     } else {
       setSuccess('Escala gerada com sucesso! Reveja os detalhes antes de publicar.');
       await loadSchedules();
@@ -85,9 +85,9 @@ export default function SchedulesPage() {
     });
     const json = await response.json();
     if (!response.ok) {
-      setError(json.error || 'Não foi possível publicar a escala.');
+      setError(json.error || 'NÃ£o foi possÃ­vel publicar a escala.');
     } else {
-      setSuccess('Escala publicada! As equipes já podem consultar no painel.');
+      setSuccess('Escala publicada! As equipes jÃ¡ podem consultar no painel.');
       await loadSchedules();
     }
     setLoadingPublish(null);
@@ -101,10 +101,10 @@ export default function SchedulesPage() {
           <div className="absolute -right-14 -top-12 h-40 w-40 rounded-full bg-indigo-400/20 blur-3xl" />
           <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.35em] text-sky-200/80">Governança ministerial</p>
-              <h1 className="mt-2 text-3xl font-black md:text-4xl">📋 Escalas & equipes</h1>
+              <p className="text-xs uppercase tracking-[0.35em] text-sky-200/80">GovernanÃ§a ministerial</p>
+              <h1 className="mt-2 text-3xl font-black md:text-4xl">ðŸ“‹ Escalas & equipes</h1>
               <p className="mt-4 max-w-2xl text-sm text-sky-100/80">
-                Controle completo de escalas mensais: gere novas versões, publique para a igreja e exporte
+                Controle completo de escalas mensais: gere novas versÃµes, publique para a igreja e exporte
                 materiais personalizados para cada equipe.
               </p>
             </div>
@@ -113,10 +113,10 @@ export default function SchedulesPage() {
                 href="/dashboard"
                 className="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/10 px-4 py-2 font-semibold transition hover:bg-white/20"
               >
-                ← Voltar ao painel
+                â† Voltar ao painel
               </Link>
               <span className="rounded-full border border-sky-200/30 bg-sky-500/20 px-4 py-2 font-semibold text-sky-100">
-                🚀 Organização que inspira confiança
+                ðŸš€ OrganizaÃ§Ã£o que inspira confianÃ§a
               </span>
             </div>
           </div>
@@ -124,8 +124,8 @@ export default function SchedulesPage() {
 
         {(error || success) && (
           <div className="rounded-2xl border border-white/10 bg-white/10 p-4 text-sm">
-            {error && <p className="text-rose-200">⚠️ {error}</p>}
-            {success && <p className="text-emerald-200">✅ {success}</p>}
+            {error && <p className="text-rose-200">âš ï¸ {error}</p>}
+            {success && <p className="text-emerald-200">âœ… {success}</p>}
           </div>
         )}
 
@@ -134,13 +134,13 @@ export default function SchedulesPage() {
             <div>
               <h2 className="text-2xl font-semibold text-white">Gerar nova escala</h2>
               <p className="mt-2 text-sm text-sky-100/80">
-                Escolha o mês desejado no formato ano-mês e gere uma nova escala baseada nas
+                Escolha o mÃªs desejado no formato ano-mÃªs e gere uma nova escala baseada nas
                 disponibilidades atuais.
               </p>
             </div>
             <div className="flex flex-col gap-3 text-sm md:flex-row md:items-center">
               <label className="flex flex-col gap-2 text-sky-100/80">
-                Mês (YYYY-MM)
+                MÃªs (YYYY-MM)
                 <input
                   type="month"
                   value={month}
@@ -154,7 +154,7 @@ export default function SchedulesPage() {
                 onClick={handleGenerate}
                 className="inline-flex items-center gap-2 rounded-full border border-indigo-300/40 bg-indigo-500/80 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-900/30 transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/10 disabled:text-indigo-100/60"
               >
-                {loadingGenerate ? 'Processando...' : '✨ Gerar escala'}
+                {loadingGenerate ? 'Processando...' : 'âœ¨ Gerar escala'}
               </button>
             </div>
           </div>
@@ -164,14 +164,14 @@ export default function SchedulesPage() {
           <div className="flex flex-col gap-2">
             <h2 className="text-2xl font-semibold text-white">Escalas cadastradas</h2>
             <p className="text-sm text-sky-100/80">
-              Organizadas por ano. Publique quando estiver tudo validado com as lideranças.
+              Organizadas por ano. Publique quando estiver tudo validado com as lideranÃ§as.
             </p>
           </div>
 
           <div className="mt-6 space-y-8">
             {Object.keys(groupedByYear).length === 0 && (
               <div className="rounded-2xl border border-white/10 bg-white/10 p-6 text-sm text-sky-100/70">
-                Ainda não existe nenhuma escala. Gere a primeira usando o formulário acima. 🙌
+                Ainda nÃ£o existe nenhuma escala. Gere a primeira usando o formulÃ¡rio acima. ðŸ™Œ
               </div>
             )}
 
@@ -210,10 +210,10 @@ export default function SchedulesPage() {
 
                             <div className="flex flex-wrap gap-3 text-xs text-sky-100/70">
                               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                ID · {schedule.id.slice(0, 8).toUpperCase()}
+                                ID Â· {schedule.id.slice(0, 8).toUpperCase()}
                               </span>
                               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                📅 Referência · {label}
+                                ðŸ“… ReferÃªncia Â· {label}
                               </span>
                             </div>
 
@@ -225,20 +225,20 @@ export default function SchedulesPage() {
                                   disabled={loadingPublish === schedule.id}
                                   className="inline-flex items-center gap-2 rounded-full border border-emerald-300/40 bg-emerald-500/80 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-900/30 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/10 disabled:text-emerald-100/60"
                                 >
-                                  {loadingPublish === schedule.id ? 'Publicando...' : '🚀 Publicar escala'}
+                                  {loadingPublish === schedule.id ? 'Publicando...' : 'ðŸš€ Publicar escala'}
                                 </button>
                               )}
                               <a
                                 href={`/api/schedules/${schedule.id}?format=csv`}
                                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-white/20"
                               >
-                                📄 Exportar CSV
+                                ðŸ“„ Exportar CSV
                               </a>
                               <a
                                 href={`/api/schedules/${schedule.id}?format=pdf`}
                                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-white/20"
                               >
-                                🖨️ Exportar PDF
+                                ðŸ–¨ï¸ Exportar PDF
                               </a>
                             </footer>
                           </article>

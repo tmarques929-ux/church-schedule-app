@@ -1,4 +1,4 @@
-import '@/globals.css';
+﻿import '@/globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 
@@ -6,7 +6,7 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Escalas da Igreja',
-  description: 'Gerenciador de escalas para ministérios da igreja'
+  description: 'Gerenciador de escalas para ministÃ©rios da igreja'
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,4 +1,4 @@
-// File: C:\Users\tribeiro\Documents\church-schedule-app\church-schedule-app\app\dashboard\availabilities\page.tsx
+﻿// File: C:\Users\tribeiro\Documents\church-schedule-app\church-schedule-app\app\dashboard\availabilities\page.tsx
 import * as entry from '../../../../../app/dashboard/availabilities/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

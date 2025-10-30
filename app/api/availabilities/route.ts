@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { createRouteHandlerSupabaseClient } from '@supabase/auth-helpers-nextjs';
 import { cookies, headers } from 'next/headers';
 
 /**
  * Permite ao membro logado registrar ou atualizar sua disponibilidade
- * para uma celebração. O corpo deve conter `celebration_id` e
+ * para uma celebraÃ§Ã£o. O corpo deve conter `celebration_id` e
  * `available` (boolean). O uso de upsert garante que o registro
  * seja criado ou atualizado conforme o caso.
  */
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     data: { user }
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    return NextResponse.json({ error: 'NÃ£o autenticado' }, { status: 401 });
   }
   const { error } = await supabase
     .from('availabilities')

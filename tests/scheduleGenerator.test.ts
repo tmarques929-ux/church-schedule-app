@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { generateSchedule } from '../lib/scheduleGenerator';
 
 // Mock supabaseAdmin to isolate tests da base real. O mock retorna
-// dados simplificados para testar a lógica de distribuição.
+// dados simplificados para testar a lÃ³gica de distribuiÃ§Ã£o.
 vi.mock('../lib/supabaseServer', () => {
   // Dados fake
   const bands = [
@@ -17,18 +17,18 @@ vi.mock('../lib/supabaseServer', () => {
   ];
   const profiles = [
     { user_id: 'm1', name: 'Ana', family_id: 'f1' },
-    { user_id: 'm2', name: 'João', family_id: 'f1' },
+    { user_id: 'm2', name: 'JoÃ£o', family_id: 'f1' },
     { user_id: 'm3', name: 'Beatriz', family_id: null },
     { user_id: 'm4', name: 'Carlos', family_id: null }
   ];
   const ministries = [
     { id: 'min-band', name: 'Bandas' },
-    { id: 'min-audio', name: 'Áudio' }
+    { id: 'min-audio', name: 'Ãudio' }
   ];
   const roles = [
     { id: 'role-vocal', ministry_id: 'min-band', name: 'Vocal' },
     { id: 'role-baixo', ministry_id: 'min-band', name: 'Baixo' },
-    { id: 'role-audio', ministry_id: 'min-audio', name: 'Operador de Áudio' }
+    { id: 'role-audio', ministry_id: 'min-audio', name: 'Operador de Ãudio' }
   ];
   const memberMinistries = [
     { member_id: 'm1', ministry_id: 'min-band' },
@@ -43,7 +43,7 @@ vi.mock('../lib/supabaseServer', () => {
     { id: 'c2', starts_at: '2025-11-09T19:00:00Z', location: '', notes: '' }
   ];
   const availabilities = [
-    // todos disponíveis
+    // todos disponÃ­veis
     { member_id: 'm1', celebration_id: 'c1', available: true },
     { member_id: 'm2', celebration_id: 'c1', available: true },
     { member_id: 'm3', celebration_id: 'c1', available: true },
@@ -104,12 +104,12 @@ describe('generateSchedule', () => {
   beforeEach(() => {
     // limpar assignments antes de cada teste
   });
-  it('deve gerar assignments balanceados para duas celebrações', async () => {
+  it('deve gerar assignments balanceados para duas celebraÃ§Ãµes', async () => {
     const { scheduleRunId, assignments } = await generateSchedule(11, 2025, {
       createdBy: 'admin-id'
     } as any);
     expect(assignments.length).toBeGreaterThan(0);
-    // cada membro deve aparecer no máximo uma vez por função
+    // cada membro deve aparecer no mÃ¡ximo uma vez por funÃ§Ã£o
     const counts: Record<string, number> = {};
     assignments.forEach((a: any) => {
       counts[a.member_id] = (counts[a.member_id] || 0) + 1;

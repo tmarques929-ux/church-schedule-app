@@ -1,4 +1,4 @@
-import { supabaseAdmin } from './supabaseServer';
+﻿import { supabaseAdmin } from './supabaseServer';
 
 /**
  * Opcoes para geracao da escala.
@@ -40,7 +40,7 @@ export class IncompleteAvailabilityError extends Error {
 }
 
 const BAND_MINISTRY_NAME = 'Bandas';
-const DERIVED_MINISTRY_NAMES = ['Multim��dia', '�?udio', 'Ilumina��ǜo'];
+const DERIVED_MINISTRY_NAMES = ['Multimï¿½ï¿½dia', 'ï¿½?udio', 'Iluminaï¿½ï¿½Çœo'];
 
 const buildAssignmentKey = (celebrationId: string, roleId: string) => `${celebrationId}::${roleId}`;
 

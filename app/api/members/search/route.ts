@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@lib/supabaseServer';
 import { ensureAdmin } from '../../_utils/ensureAdmin';
 

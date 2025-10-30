@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -72,7 +72,7 @@ export default function AvailabilitiesPage() {
     });
     if (!response.ok) {
       const json = await response.json();
-      setError(json.error || 'Não foi possível atualizar sua disponibilidade.');
+      setError(json.error || 'NÃ£o foi possÃ­vel atualizar sua disponibilidade.');
       setAvailabilities((prev) => ({ ...prev, [celebrationId]: !available }));
     }
     setPendingId(null);
@@ -89,9 +89,9 @@ export default function AvailabilitiesPage() {
               <p className="text-xs uppercase tracking-[0.35em] text-emerald-200/80">
                 Servindo com alegria
               </p>
-              <h1 className="mt-2 text-3xl font-black md:text-4xl">🗓️ Minhas disponibilidades</h1>
+              <h1 className="mt-2 text-3xl font-black md:text-4xl">ðŸ—“ï¸ Minhas disponibilidades</h1>
               <p className="mt-4 max-w-2xl text-sm text-emerald-100/80">
-                Atualize com rapidez os dias em que você pode servir. Cada confirmação ajuda a montar
+                Atualize com rapidez os dias em que vocÃª pode servir. Cada confirmaÃ§Ã£o ajuda a montar
                 escalas equilibradas e acolhedoras.
               </p>
             </div>
@@ -100,10 +100,10 @@ export default function AvailabilitiesPage() {
                 href="/dashboard"
                 className="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/10 px-4 py-2 font-semibold transition hover:bg-white/20"
               >
-                ← Voltar ao painel
+                â† Voltar ao painel
               </Link>
               <span className="rounded-full border border-emerald-200/30 bg-emerald-500/20 px-4 py-2 font-semibold text-emerald-100">
-                🤝 Juntos pela Igreja da Cidade Tremembé
+                ðŸ¤ Juntos pela Igreja da Cidade TremembÃ©
               </span>
             </div>
           </div>
@@ -111,7 +111,7 @@ export default function AvailabilitiesPage() {
 
         {error && (
           <div className="rounded-2xl border border-white/10 bg-white/10 p-4 text-sm text-rose-200">
-            ⚠️ {error}
+            âš ï¸ {error}
           </div>
         )}
 
@@ -120,12 +120,12 @@ export default function AvailabilitiesPage() {
             <div>
               <h2 className="text-2xl font-semibold text-white">Agenda de cultos</h2>
               <p className="mt-2 text-sm text-emerald-100/80">
-                Marque presença com antecedência. Você pode filtrar por local ou data.
+                Marque presenÃ§a com antecedÃªncia. VocÃª pode filtrar por local ou data.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <label className="flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/50 px-4 py-2 text-sm text-emerald-100/80">
-                🔍
+                ðŸ”
                 <input
                   type="text"
                   placeholder="Buscar por data ou local"
@@ -143,7 +143,7 @@ export default function AvailabilitiesPage() {
                     : 'border-white/10 bg-white/10 text-emerald-100/80 hover:bg-white/20'
                 }`}
               >
-                {showOnlyAvailable ? '✅ Mostrando apenas confirmados' : '👀 Mostrar apenas confirmados'}
+                {showOnlyAvailable ? 'âœ… Mostrando apenas confirmados' : 'ðŸ‘€ Mostrar apenas confirmados'}
               </button>
             </div>
           </div>
@@ -151,7 +151,7 @@ export default function AvailabilitiesPage() {
           <div className="mt-8 space-y-4">
             {filteredCelebrations.length === 0 && (
               <div className="rounded-2xl border border-white/10 bg-white/10 p-6 text-sm text-emerald-100/70">
-                Nada por aqui no filtro atual. Que tal remover os filtros ou consultar a secretaria? 💌
+                Nada por aqui no filtro atual. Que tal remover os filtros ou consultar a secretaria? ðŸ’Œ
               </div>
             )}
 
@@ -175,14 +175,14 @@ export default function AvailabilitiesPage() {
                 >
                   <header className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                     <div>
-                      <p className="text-xs uppercase tracking-widest text-emerald-200/70">Próximo culto</p>
+                      <p className="text-xs uppercase tracking-widest text-emerald-200/70">PrÃ³ximo culto</p>
                       <h3 className="text-xl font-semibold text-white">
-                        {formattedDate} · {formattedTime}
+                        {formattedDate} Â· {formattedTime}
                       </h3>
                       <p className="text-sm font-semibold text-emerald-100">
                         {celebration.notes ?? 'Celebracao sem nome'}
                       </p>
-                      <p className="text-sm text-emerald-100/70">📍 {celebration.location}</p>
+                      <p className="text-sm text-emerald-100/70">ðŸ“ {celebration.location}</p>
                     </div>
                     <button
                       type="button"
@@ -197,19 +197,19 @@ export default function AvailabilitiesPage() {
                       {pendingId === celebration.id
                         ? 'Enviando...'
                         : available
-                        ? '✅ Confirmado para servir'
-                        : '🤝 Marcar presença'}
+                        ? 'âœ… Confirmado para servir'
+                        : 'ðŸ¤ Marcar presenÃ§a'}
                     </button>
                   </header>
                   <footer className="flex flex-wrap items-center gap-3 text-xs text-emerald-100/70">
                     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                      ID · {celebration.id.slice(0, 8).toUpperCase()}
+                      ID Â· {celebration.id.slice(0, 8).toUpperCase()}
                     </span>
                     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                      ⏱️ {startsAtDate.toLocaleString('pt-BR')}
+                      â±ï¸ {startsAtDate.toLocaleString('pt-BR')}
                     </span>
                     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                      {available ? '🟢 Você está escalado(a)' : '⚪ Aguardando confirmação'}
+                      {available ? 'ðŸŸ¢ VocÃª estÃ¡ escalado(a)' : 'âšª Aguardando confirmaÃ§Ã£o'}
                     </span>
                   </footer>
                 </article>
