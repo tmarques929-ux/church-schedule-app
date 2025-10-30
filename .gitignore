@@ -1,0 +1,10 @@
+﻿node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+.vscode/
+.env
+.env.*
+*.log

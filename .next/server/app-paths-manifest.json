@@ -1,0 +1,7 @@
+{
+  "/dashboard/availabilities/page": "app/dashboard/availabilities/page.js",
+  "/login/page": "app/login/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/api/ministries/route": "app/api/ministries/route.js",
+  "/dashboard/schedules/page": "app/dashboard/schedules/page.js"
+}
