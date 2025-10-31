@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { generateSchedule, IncompleteAvailabilityError } from '@lib/scheduleGenerator';
+import { generateSchedule, IncompleteAvailabilityError, ExistingScheduleError } from '@lib/scheduleGenerator';
 import { ensureAdmin } from '../../_utils/ensureAdmin';
 
 /**
@@ -47,6 +47,9 @@ export async function POST(request: Request) {
       warnings: result.warnings
     });
   } catch (error: any) {
+    if (error instanceof ExistingScheduleError || error?.code === 'SCHEDULE_ALREADY_EXISTS') {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     console.error(error);
     const warnings = (error instanceof IncompleteAvailabilityError || Array.isArray(error?.warnings))
       ? error.warnings

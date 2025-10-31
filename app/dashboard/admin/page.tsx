@@ -5,6 +5,10 @@ import Link from 'next/link';
 import ScheduleGeneratorCard from '../ScheduleGeneratorCard';
 import ResetPasswordCard from '../ResetPasswordCard';
 import MemberAssignmentsSearchCard from "../schedules/MemberAssignmentsSearchCard";
+import UpdateUsernameCard from "../UpdateUsernameCard";
+import AdminMinistryAssignmentsCard from "./AdminMinistryAssignmentsCard";
+import AdminMinistryDirectoryCard from "./AdminMinistryDirectoryCard";
+import AdminAvailabilitiesOverviewCard from "./AdminAvailabilitiesOverviewCard";
 
 
 export default async function AdminAreaPage() {
@@ -44,7 +48,7 @@ export default async function AdminAreaPage() {
                 href="/dashboard"
                 className="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/10 px-4 py-2 font-semibold transition hover:bg-white/20"
               >
-                ? Voltar ao painel principal
+                Voltar ao painel principal
               </Link>
             </div>
           </div>
@@ -52,6 +56,10 @@ export default async function AdminAreaPage() {
 
         <ScheduleGeneratorCard />
         <ResetPasswordCard />
+        <UpdateUsernameCard />
+        <AdminMinistryAssignmentsCard />
+        <AdminMinistryDirectoryCard />
+        <AdminAvailabilitiesOverviewCard />
         <MemberAssignmentsSearchCard />
       </div>
     </div>

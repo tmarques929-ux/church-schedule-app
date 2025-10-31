@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { supabase } from '@lib/supabaseClient';
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { supabase } from "@lib/supabaseClient";
 
 interface Celebration {
   id: string;
@@ -17,15 +17,34 @@ export default function AvailabilitiesPage() {
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [showOnlyAvailable, setShowOnlyAvailable] = useState(false);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     async function loadData() {
+      setError(null);
+
+      const {
+        data: userData,
+        error: userError
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        setError(userError.message);
+        return;
+      }
+
+      const currentUserId = userData?.user?.id;
+      if (!currentUserId) {
+        setError("Nao foi possivel identificar o usuario logado.");
+        return;
+      }
+
       const { data: celebrationsData, error: celebrationsError } = await supabase
-        .from('celebrations')
-        .select('id, starts_at, location, notes')
-        .gte('starts_at', new Date().toISOString())
-        .order('starts_at');
+        .from("celebrations")
+        .select("id, starts_at, location, notes")
+        .gte("starts_at", new Date().toISOString())
+        .order("starts_at");
+
       if (celebrationsError) {
         setError(celebrationsError.message);
         return;
@@ -33,14 +52,18 @@ export default function AvailabilitiesPage() {
       setCelebrations((celebrationsData as Celebration[]) ?? []);
 
       const { data: availabilitiesData, error: availabilitiesError } = await supabase
-        .from('availabilities')
-        .select('*');
+        .from("availabilities")
+        .select("celebration_id, available")
+        .eq("member_id", currentUserId);
+
       if (!availabilitiesError && availabilitiesData) {
         const map: Record<string, boolean> = {};
         availabilitiesData.forEach((item: any) => {
           map[item.celebration_id] = item.available;
         });
         setAvailabilities(map);
+      } else if (availabilitiesError) {
+        setError(availabilitiesError.message);
       }
     }
     loadData();
@@ -52,9 +75,10 @@ export default function AvailabilitiesPage() {
       const matchesSearch =
         !term ||
         celebration.location.toLowerCase().includes(term) ||
-        (celebration.notes ?? '').toLowerCase().includes(term) ||
-        new Date(celebration.starts_at).toLocaleDateString('pt-BR').toLowerCase().includes(term);
-      const isAvailable = !!availabilities[celebration.id];
+        (celebration.notes ?? "").toLowerCase().includes(term) ||
+        new Date(celebration.starts_at).toLocaleDateString("pt-BR").toLowerCase().includes(term);
+
+      const isAvailable = Boolean(availabilities[celebration.id]);
       const matchesAvailability = showOnlyAvailable ? isAvailable : true;
       return matchesSearch && matchesAvailability;
     });
@@ -65,16 +89,19 @@ export default function AvailabilitiesPage() {
     setPendingId(celebrationId);
     setError(null);
     setAvailabilities((prev) => ({ ...prev, [celebrationId]: available }));
-    const response = await fetch('/api/availabilities', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+
+    const response = await fetch("/api/availabilities", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ celebration_id: celebrationId, available })
     });
+
     if (!response.ok) {
       const json = await response.json();
-      setError(json.error || 'NÃ£o foi possÃ­vel atualizar sua disponibilidade.');
+      setError(json.error || "Nao foi possivel atualizar sua disponibilidade.");
       setAvailabilities((prev) => ({ ...prev, [celebrationId]: !available }));
     }
+
     setPendingId(null);
   }
 
@@ -86,13 +113,11 @@ export default function AvailabilitiesPage() {
           <div className="absolute -right-14 -top-12 h-40 w-40 rounded-full bg-emerald-400/20 blur-3xl" />
           <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.35em] text-emerald-200/80">
-                Servindo com alegria
-              </p>
-              <h1 className="mt-2 text-3xl font-black md:text-4xl">ðŸ—“ï¸ Minhas disponibilidades</h1>
+              <p className="text-xs uppercase tracking-[0.35em] text-emerald-200/80">Servindo com alegria</p>
+              <h1 className="mt-2 text-3xl font-black md:text-4xl">🗓️ Minhas disponibilidades</h1>
               <p className="mt-4 max-w-2xl text-sm text-emerald-100/80">
-                Atualize com rapidez os dias em que vocÃª pode servir. Cada confirmaÃ§Ã£o ajuda a montar
-                escalas equilibradas e acolhedoras.
+                Atualize com rapidez os dias em que voce pode servir. Cada confirmacao ajuda a montar escalas
+                equilibradas e acolhedoras.
               </p>
             </div>
             <div className="flex flex-col gap-3 text-sm text-emerald-100/80">
@@ -100,10 +125,10 @@ export default function AvailabilitiesPage() {
                 href="/dashboard"
                 className="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/10 px-4 py-2 font-semibold transition hover:bg-white/20"
               >
-                â† Voltar ao painel
+                ↩️ Voltar ao painel
               </Link>
               <span className="rounded-full border border-emerald-200/30 bg-emerald-500/20 px-4 py-2 font-semibold text-emerald-100">
-                ðŸ¤ Juntos pela Igreja da Cidade TremembÃ©
+                🤝 Juntos pela Igreja da Cidade Tremembe
               </span>
             </div>
           </div>
@@ -111,7 +136,7 @@ export default function AvailabilitiesPage() {
 
         {error && (
           <div className="rounded-2xl border border-white/10 bg-white/10 p-4 text-sm text-rose-200">
-            âš ï¸ {error}
+            ⚠️ {error}
           </div>
         )}
 
@@ -120,12 +145,13 @@ export default function AvailabilitiesPage() {
             <div>
               <h2 className="text-2xl font-semibold text-white">Agenda de cultos</h2>
               <p className="mt-2 text-sm text-emerald-100/80">
-                Marque presenÃ§a com antecedÃªncia. VocÃª pode filtrar por local ou data.
+                Marque presenca com antecedencia. Voce pode filtrar por local ou data.
               </p>
             </div>
+
             <div className="flex flex-wrap items-center gap-3">
               <label className="flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/50 px-4 py-2 text-sm text-emerald-100/80">
-                ðŸ”
+                🔍
                 <input
                   type="text"
                   placeholder="Buscar por data ou local"
@@ -139,11 +165,11 @@ export default function AvailabilitiesPage() {
                 onClick={() => setShowOnlyAvailable((current) => !current)}
                 className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
                   showOnlyAvailable
-                    ? 'border-emerald-200/40 bg-emerald-500/80 text-white shadow-lg shadow-emerald-900/20'
-                    : 'border-white/10 bg-white/10 text-emerald-100/80 hover:bg-white/20'
+                    ? "border-emerald-200/40 bg-emerald-500/80 text-white shadow-lg shadow-emerald-900/20"
+                    : "border-white/10 bg-white/10 text-emerald-100/80 hover:bg-white/20"
                 }`}
               >
-                {showOnlyAvailable ? 'âœ… Mostrando apenas confirmados' : 'ðŸ‘€ Mostrar apenas confirmados'}
+                {showOnlyAvailable ? "✅ Mostrando apenas confirmados" : "👀 Mostrar apenas confirmados"}
               </button>
             </div>
           </div>
@@ -151,22 +177,22 @@ export default function AvailabilitiesPage() {
           <div className="mt-8 space-y-4">
             {filteredCelebrations.length === 0 && (
               <div className="rounded-2xl border border-white/10 bg-white/10 p-6 text-sm text-emerald-100/70">
-                Nada por aqui no filtro atual. Que tal remover os filtros ou consultar a secretaria? ðŸ’Œ
+                Nada por aqui no filtro atual. Que tal remover os filtros ou consultar a secretaria? 💌
               </div>
             )}
 
             {filteredCelebrations.map((celebration) => {
               const startsAtDate = new Date(celebration.starts_at);
-              const formattedDate = startsAtDate.toLocaleDateString('pt-BR', {
-                weekday: 'long',
-                day: '2-digit',
-                month: 'long'
+              const formattedDate = startsAtDate.toLocaleDateString("pt-BR", {
+                weekday: "long",
+                day: "2-digit",
+                month: "long"
               });
-              const formattedTime = startsAtDate.toLocaleTimeString('pt-BR', {
-                hour: '2-digit',
-                minute: '2-digit'
+              const formattedTime = startsAtDate.toLocaleTimeString("pt-BR", {
+                hour: "2-digit",
+                minute: "2-digit"
               });
-              const available = !!availabilities[celebration.id];
+              const available = Boolean(availabilities[celebration.id]);
 
               return (
                 <article
@@ -175,14 +201,14 @@ export default function AvailabilitiesPage() {
                 >
                   <header className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                     <div>
-                      <p className="text-xs uppercase tracking-widest text-emerald-200/70">PrÃ³ximo culto</p>
+                      <p className="text-xs uppercase tracking-widest text-emerald-200/70">Proximo culto</p>
                       <h3 className="text-xl font-semibold text-white">
-                        {formattedDate} Â· {formattedTime}
+                        {formattedDate} · {formattedTime}
                       </h3>
                       <p className="text-sm font-semibold text-emerald-100">
-                        {celebration.notes ?? 'Celebracao sem nome'}
+                        {celebration.notes ?? "Celebracao sem nome"}
                       </p>
-                      <p className="text-sm text-emerald-100/70">ðŸ“ {celebration.location}</p>
+                      <p className="text-sm text-emerald-100/70">📍 {celebration.location}</p>
                     </div>
                     <button
                       type="button"
@@ -190,26 +216,26 @@ export default function AvailabilitiesPage() {
                       disabled={pendingId === celebration.id}
                       className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
                         available
-                          ? 'border-emerald-200/40 bg-emerald-500/80 text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-400'
-                          : 'border-white/10 bg-white/10 text-emerald-100/80 hover:bg-white/20'
-                      } ${pendingId === celebration.id ? 'cursor-wait opacity-70' : ''}`}
+                          ? "border-emerald-200/40 bg-emerald-500/80 text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-400"
+                          : "border-white/10 bg-white/10 text-emerald-100/80 hover:bg-white/20"
+                      } ${pendingId === celebration.id ? "cursor-wait opacity-70" : ""}`}
                     >
                       {pendingId === celebration.id
-                        ? 'Enviando...'
+                        ? "Enviando..."
                         : available
-                        ? 'âœ… Confirmado para servir'
-                        : 'ðŸ¤ Marcar presenÃ§a'}
+                        ? "✅ Confirmado para servir"
+                        : "🤝 Marcar presenca"}
                     </button>
                   </header>
                   <footer className="flex flex-wrap items-center gap-3 text-xs text-emerald-100/70">
                     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                      ID Â· {celebration.id.slice(0, 8).toUpperCase()}
+                      ID · {celebration.id.slice(0, 8).toUpperCase()}
                     </span>
                     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                      â±ï¸ {startsAtDate.toLocaleString('pt-BR')}
+                      🕒 {startsAtDate.toLocaleString("pt-BR")}
                     </span>
                     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                      {available ? 'ðŸŸ¢ VocÃª estÃ¡ escalado(a)' : 'âšª Aguardando confirmaÃ§Ã£o'}
+                      {available ? "🟢 Voce esta escalado(a)" : "⚪ Aguardando confirmacao"}
                     </span>
                   </footer>
                 </article>

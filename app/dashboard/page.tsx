@@ -47,32 +47,32 @@ export default async function DashboardPage() {
   const quickCards: QuickCard[] = [
     {
       href: "/dashboard/celebrations",
-      emoji: "??",
+      emoji: "ğŸ‰",
       badge: "CELEBRATIONS",
-      title: "Cultos & celebrações",
+      title: "Cultos & celebraÃ§Ãµes",
       description:
-        "Cadastre e acompanhe datas especiais com detalhes de local, horário e notas pastorais.",
-      cta: "Abrir agenda ?",
+        "Cadastre e acompanhe datas especiais com detalhes de local, horÃ¡rio e notas pastorais.",
+      cta: "Abrir agenda âœ¨",
       gradient:
         "from-[#342D7E]/60 via-[#2B275B]/60 to-[#202042]/60 shadow-indigo-900/40 hover:border-[#5446FF]/50"
     },
     {
       href: "/dashboard/availabilities",
-      emoji: "??",
+      emoji: "ğŸ—“ï¸",
       badge: "DISPONIBILIDADES",
       title: "Minhas disponibilidades",
       description: "Atualize quando pode servir e mantenha a equipe informada, evitando conflitos.",
-      cta: "Registrar presença ?",
+      cta: "Registrar presenÃ§a ğŸ™‹",
       gradient:
         "from-[#0E647E]/60 via-[#074A63]/60 to-[#05364D]/60 shadow-sky-900/40 hover:border-[#31B4F5]/50"
     },
     {
       href: "/dashboard/schedules",
-      emoji: "??",
+      emoji: "ğŸ‘¥",
       badge: "ESCALAS",
       title: "Escalas & equipes",
-      description: "Visualize escalas, exporte PDFs/CSVs e acompanhe cada ministério com clareza.",
-      cta: "Ver escalas ?",
+      description: "Visualize escalas, exporte PDFs/CSVs e acompanhe cada ministÃ©rio com clareza.",
+      cta: "Ver escalas ğŸ“‹",
       gradient:
         "from-[#0F6B4A]/60 via-[#0B5238]/60 to-[#073828]/60 shadow-emerald-900/40 hover:border-[#29D194]/50"
     }
@@ -80,14 +80,14 @@ export default async function DashboardPage() {
 
   const announcements: Announcement[] = [
     {
-      icon: "?",
-      message: "Revise sua disponibilidade com antecedência para montarmos escalas equilibradas."
+      icon: "ğŸ“Œ",
+      message: "Revise sua disponibilidade com antecedÃªncia para montarmos escalas equilibradas."
     },
     {
-      icon: "??",
-      message: "Treinamento técnico do setor de áudio neste domingo, às 15h, sala principal."
+      icon: "ğŸ§",
+      message: "Treinamento tÃ©cnico do setor de Ã¡udio neste domingo, Ã s 15h, sala principal."
     },
-    { icon: "??", message: "Aproveite o painel para compartilhar feedbacks e celebrar com sua equipe!" }
+    { icon: "ğŸ’¬", message: "Aproveite o painel para compartilhar feedbacks e celebrar com sua equipe!" }
   ];
 
   return (
@@ -99,35 +99,35 @@ export default async function DashboardPage() {
           <div className="relative flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
             <div className="space-y-4">
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-indigo-200/80">
-                Igreja da Cidade Tremembé
+                Igreja da Cidade TremembÃ©
               </p>
               <h1 className="text-[40px] font-black leading-tight text-white sm:text-[44px]">
-                ?? Painel Ministerial – Uma igreja para pertencer
+                âœ¨ Painel Ministerial â€“ Uma igreja para pertencer
               </h1>
               <p className="max-w-2xl text-sm leading-relaxed text-indigo-100/85">
-                Bem-vindo(a), <span className="font-semibold text-white">{profile?.name ?? "-"}</span>! Aqui você
-                acompanha celebrações, disponibilidades e escalas com visual moderno e organizado. Seu papel atual é
+                Bem-vindo(a), <span className="font-semibold text-white">{profile?.name ?? "-"}</span>! Aqui vocÃª
+                acompanha celebraÃ§Ãµes, disponibilidades e escalas com visual moderno e organizado. Seu papel atual Ã©
                 <span className="ml-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm font-semibold uppercase tracking-wide text-white/90">
-                  <span className="text-lg">??</span>
+                  <span className="text-lg">ğŸ–ï¸</span>
                   {currentRole}
                 </span>
                 .
               </p>
             </div>
             <div className="flex w-full max-w-xs flex-col gap-4 rounded-3xl border border-white/10 bg-gradient-to-br from-[#1D1F3A]/75 via-[#13142A]/85 to-[#0B0D1F]/90 p-6 text-sm text-indigo-50 shadow-[0_35px_90px_-45px_rgba(30,64,175,0.7)]">
-              <span className="text-xs uppercase tracking-[0.35em] text-indigo-200/70">Acesso rápido</span>
-              <p className="text-lg font-semibold text-white">? Servir é um privilégio</p>
+              <span className="text-xs uppercase tracking-[0.35em] text-indigo-200/70">Acesso rÃ¡pido</span>
+              <p className="text-lg font-semibold text-white">ğŸ™ Servir Ã© um privilÃ©gio</p>
               <Link
                 href="/"
                 className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#635BFF] to-[#4D9FFF] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-900/40 transition hover:opacity-90"
               >
-                ? Voltar ao site principal
+                ğŸ  Voltar ao site principal
               </Link>
               <Link
                 href="/login"
                 className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-3 text-sm font-semibold text-indigo-100 transition hover:bg-white/15"
               >
-                ?? Sair e trocar usuário
+                ğŸ”„ Sair e trocar usuÃ¡rio
               </Link>
             </div>
           </div>
@@ -158,35 +158,35 @@ export default async function DashboardPage() {
         <section className="grid gap-6 md:grid-cols-2">
           <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 via-white/5 to-white/10 p-8 text-sm text-indigo-100 shadow-[0_30px_90px_-40px_rgba(56,97,251,0.6)]">
             <div className="flex items-center gap-3 text-white">
-              <span className="text-2xl">???</span>
-              <h3 className="text-xl font-semibold">Ações rápidas</h3>
+              <span className="text-2xl">âš¡</span>
+              <h3 className="text-xl font-semibold">AÃ§Ãµes rÃ¡pidas</h3>
             </div>
-            <p className="mt-3 text-indigo-100/80">Navegue com agilidade entre as principais rotinas do ministério.</p>
+            <p className="mt-3 text-indigo-100/80">Navegue com agilidade entre as principais rotinas do ministÃ©rio.</p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
                 href="/dashboard/celebrations?view=calendar"
                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 font-semibold text-indigo-100 transition hover:bg-white/20"
               >
-                ?? Ver calendário
+                ğŸ—“ï¸ Ver calendÃ¡rio
               </Link>
               <Link
                 href="/dashboard/schedules?mode=admin"
                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 font-semibold text-indigo-100 transition hover:bg-white/20"
               >
-                ?? Gerar nova escala
+                ğŸ› ï¸ Gerar nova escala
               </Link>
               <Link
                 href="/dashboard/availabilities?mode=batch"
                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 font-semibold text-indigo-100 transition hover:bg-white/20"
               >
-                ?? Confirmar equipe
+                ğŸ¤ Confirmar equipe
               </Link>
               {isAdmin && (
                 <Link
                   href="/dashboard/admin"
                   className="inline-flex items-center gap-2 rounded-full border border-indigo-300/40 bg-indigo-500/20 px-4 py-2 font-semibold text-indigo-100 transition hover:bg-indigo-500/30"
                 >
-                  ??? Área restrita (admins)
+                  ğŸ”’ Ãrea restrita (admins)
                 </Link>
               )}
             </div>
@@ -194,8 +194,8 @@ export default async function DashboardPage() {
 
           <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-[#201D34]/70 via-[#15122A]/80 to-[#0B0A19]/90 p-8 text-sm text-indigo-100 shadow-[0_30px_90px_-50px_rgba(30,64,175,0.6)]">
             <div className="flex items-center gap-3 text-white">
-              <span className="text-2xl">??</span>
-              <h3 className="text-xl font-semibold">Comunicados do ministério</h3>
+              <span className="text-2xl">ğŸ“£</span>
+              <h3 className="text-xl font-semibold">Comunicados do ministÃ©rio</h3>
             </div>
             <ul className="mt-4 space-y-3">
               {announcements.map((item) => (
@@ -209,7 +209,7 @@ export default async function DashboardPage() {
               href="mailto:ministerios@icctremembe.com"
               className="mt-6 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#5A50F6] to-[#21C1F3] px-4 py-2 font-semibold text-white shadow-lg shadow-indigo-900/40 transition hover:opacity-90"
             >
-              ?? Falar com a coordenação
+              âœ‰ï¸ Falar com a coordenaÃ§Ã£o
             </Link>
           </div>
         </section>

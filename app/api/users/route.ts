@@ -193,6 +193,128 @@ export async function POST(request: Request) {
       }
 
       // ------------------------------------------------------
+      case 'updateUsername': {
+        const { userId, email, currentUsername, newUsername } = body;
+
+        const normalizedNewUsername =
+          typeof newUsername === 'string' ? newUsername.trim().toLowerCase() : '';
+        if (!normalizedNewUsername) {
+          return NextResponse.json({ error: 'Informe o novo username.' }, { status: 400 });
+        }
+        if (!/^[a-z0-9._-]+$/.test(normalizedNewUsername)) {
+          return NextResponse.json(
+            { error: 'Username deve conter apenas letras, numeros e os caracteres ._- (sem espacos)' },
+            { status: 400 }
+          );
+        }
+
+        let targetUserId =
+          typeof userId === 'string' && userId.trim().length > 0 ? userId.trim() : undefined;
+
+        const normalizedEmail =
+          typeof email === 'string' ? email.trim().toLowerCase() : undefined;
+        const normalizedCurrentUsername =
+          typeof currentUsername === 'string' ? currentUsername.trim().toLowerCase() : undefined;
+
+        if (!targetUserId && normalizedEmail) {
+          const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+            email: normalizedEmail,
+            perPage: 1
+          });
+          if (error) {
+            return NextResponse.json({ error: error.message }, { status: 400 });
+          }
+          targetUserId = data?.users?.[0]?.id || undefined;
+        }
+
+        if (!targetUserId && normalizedCurrentUsername) {
+          if (!/^[a-z0-9._-]+$/.test(normalizedCurrentUsername)) {
+            return NextResponse.json({ error: 'Username atual invalido.' }, { status: 400 });
+          }
+          const { data, error } = await supabaseAdmin
+            .from('profiles')
+            .select('user_id')
+            .eq('username', normalizedCurrentUsername)
+            .maybeSingle();
+          if (error) {
+            return NextResponse.json({ error: error.message }, { status: 400 });
+          }
+          targetUserId = data?.user_id || undefined;
+        }
+
+        if (!targetUserId) {
+          return NextResponse.json(
+            { error: 'Nao foi possivel localizar o usuario informado.' },
+            { status: 404 }
+          );
+        }
+
+        const { data: profileData, error: profileError } = await supabaseAdmin
+          .from('profiles')
+          .select('id, username')
+          .eq('user_id', targetUserId)
+          .maybeSingle();
+
+        if (profileError) {
+          return NextResponse.json({ error: profileError.message }, { status: 400 });
+        }
+
+        if (!profileData) {
+          return NextResponse.json({ error: 'Perfil nao encontrado.' }, { status: 404 });
+        }
+
+        if (profileData.username === normalizedNewUsername) {
+          return NextResponse.json({ success: true, userId: targetUserId });
+        }
+
+        const { data: conflict, error: conflictError } = await supabaseAdmin
+          .from('profiles')
+          .select('user_id')
+          .eq('username', normalizedNewUsername)
+          .maybeSingle();
+
+        if (conflictError) {
+          return NextResponse.json({ error: conflictError.message }, { status: 400 });
+        }
+        if (conflict && conflict.user_id !== targetUserId) {
+          return NextResponse.json({ error: 'Username ja utilizado por outro usuario.' }, { status: 409 });
+        }
+
+        const { error: profileUpdateError } = await supabaseAdmin
+          .from('profiles')
+          .update({ username: normalizedNewUsername })
+          .eq('user_id', targetUserId);
+
+        if (profileUpdateError) {
+          return NextResponse.json({ error: profileUpdateError.message }, { status: 400 });
+        }
+
+        const { data: userInfo, error: userInfoError } = await supabaseAdmin.auth.admin.getUserById(
+          targetUserId
+        );
+
+        if (userInfoError) {
+          return NextResponse.json({ error: userInfoError.message }, { status: 400 });
+        }
+
+        const existingMetadata =
+          (userInfo?.user?.user_metadata as Record<string, unknown> | null) || {};
+
+        const { error: metadataUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
+          targetUserId,
+          {
+            user_metadata: { ...existingMetadata, username: normalizedNewUsername }
+          }
+        );
+
+        if (metadataUpdateError) {
+          return NextResponse.json({ error: metadataUpdateError.message }, { status: 400 });
+        }
+
+        return NextResponse.json({ success: true, userId: targetUserId });
+      }
+
+      // ------------------------------------------------------
       default:
         return NextResponse.json({ error: 'Acao nao suportada' }, { status: 400 });
     }

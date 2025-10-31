@@ -19,6 +19,19 @@ interface Profile {
   family_id: string | null;
 }
 
+interface Band {
+  id: string;
+  name: string;
+  description?: string | null;
+  active?: boolean | null;
+}
+
+interface BandMember {
+  band_id: string;
+  member_id: string;
+  role_in_band: string;
+}
+
 export interface GenerationWarning {
   celebrationId: string;
   celebrationStartsAt: string;
@@ -39,8 +52,19 @@ export class IncompleteAvailabilityError extends Error {
   }
 }
 
+export class ExistingScheduleError extends Error {
+  public readonly code = 'SCHEDULE_ALREADY_EXISTS';
+
+  constructor(month: number, year: number) {
+    const label = `${String(month).padStart(2, '0')}/${year}`;
+    super(`Ja existe uma escala registrada para ${label}. Apague a versao atual antes de gerar novamente.`);
+  }
+}
+
 const BAND_MINISTRY_NAME = 'Bandas';
-const DERIVED_MINISTRY_NAMES = ['Multimï¿½ï¿½dia', 'ï¿½?udio', 'Iluminaï¿½ï¿½Çœo'];
+const DERIVED_MINISTRY_NAMES = ['multimidia', 'audio', 'iluminacao'];
+const SPECIAL_ELEVE_KEYWORDS = ['eleve', '30 semanas', '30-semanas', '30semana'];
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 const buildAssignmentKey = (celebrationId: string, roleId: string) => `${celebrationId}::${roleId}`;
 
@@ -58,6 +82,9 @@ export async function generateSchedule(
     .eq('year', year)
     .maybeSingle();
   if (runError) throw runError;
+  if (existingRun) {
+    throw new ExistingScheduleError(month, year);
+  }
 
   const scheduleRunIdExisting = existingRun?.id ?? null;
 
@@ -72,22 +99,22 @@ export async function generateSchedule(
   if (celErr) throw celErr;
 
   const [
-    { data: bands },
-    { data: bandMembers },
     { data: profiles },
     { data: ministries },
     { data: roles },
-    { data: memberMinistries }
+    { data: memberMinistries },
+    { data: bands },
+    { data: bandMembers }
   ] = await Promise.all([
-    supabaseAdmin.from('bands').select('*').eq('active', true),
-    supabaseAdmin.from('band_members').select('*'),
     supabaseAdmin.from('profiles').select('user_id, name, family_id'),
     supabaseAdmin.from('ministries').select('*'),
     supabaseAdmin.from('roles').select('*'),
-    supabaseAdmin.from('member_ministries').select('*')
+    supabaseAdmin.from('member_ministries').select('*'),
+    supabaseAdmin.from('bands').select('*').eq('active', true),
+    supabaseAdmin.from('band_members').select('*')
   ]);
 
-  if (!bands || !bandMembers || !profiles || !ministries || !roles || !memberMinistries) {
+  if (!profiles || !ministries || !roles || !memberMinistries || !bands || !bandMembers) {
     throw new Error('Erro ao carregar dados necessarios');
   }
 
@@ -128,64 +155,151 @@ export async function generateSchedule(
   }> = [];
   const warnings: GenerationWarning[] = [];
 
-  const bandsList = bands ?? [];
-  const bandMinistry = ministries.find((m) => m.name === BAND_MINISTRY_NAME) ?? null;
-  const derivedMinistries = DERIVED_MINISTRY_NAMES.map((name) =>
-    ministries.find((m) => m.name === name) ?? null
-  ).filter((ministry): ministry is NonNullable<typeof ministry> => Boolean(ministry));
+  const normalizeName = (value: string | null | undefined) =>
+    value ? value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() : '';
 
-  let bandToggle = 0;
+  const profilesById = new Map<string, Profile>(
+    profiles.map((profile) => [profile.user_id, profile] as [string, Profile])
+  );
 
-  for (const celebration of celebrations ?? []) {
+  const bandList: Band[] = ((bands as Band[] | null | undefined) ?? []).filter(
+    (band) => band.active !== false
+  );
+  const bandMemberList: BandMember[] = (bandMembers as BandMember[] | null | undefined) ?? [];
+
+  const normalizedBandName = normalizeName(BAND_MINISTRY_NAME);
+  const bandMinistry =
+    ministries.find((ministry) => normalizeName(ministry.name) === normalizedBandName) ?? null;
+  const derivedMinistries = ministries.filter((ministry) =>
+    DERIVED_MINISTRY_NAMES.includes(normalizeName(ministry.name))
+  );
+  const normalizedTargetMinistry = options.ministry ? normalizeName(options.ministry) : null;
+
+  const sortedBands = [...bandList].sort((a, b) =>
+    a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })
+  );
+  const eleveBand = sortedBands.find((band) => normalizeName(band.name).includes('eleve')) ?? null;
+  const rotationBands = sortedBands.filter((band) => band.id !== eleveBand?.id);
+  const primaryRotationBands = rotationBands.length > 0 ? rotationBands : sortedBands;
+  const bandMapById = new Map(sortedBands.map((band) => [band.id, band]));
+
+  const celebrationsList = celebrations ?? [];
+  const sortedCelebrations = [...celebrationsList].sort(
+    (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()
+  );
+
+  const firstSundayUtc = new Date(Date.UTC(year, month - 1, 1));
+  while (firstSundayUtc.getUTCDay() !== 0) {
+    firstSundayUtc.setUTCDate(firstSundayUtc.getUTCDate() + 1);
+  }
+  const firstSundayStartMs = Date.UTC(
+    firstSundayUtc.getUTCFullYear(),
+    firstSundayUtc.getUTCMonth(),
+    firstSundayUtc.getUTCDate()
+  );
+
+  const celebrationBandMap = new Map<string, string | null>();
+  sortedCelebrations.forEach((celebration) => {
+    const date = new Date(celebration.starts_at);
+    const dayStartMs = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+
+    const normalizedNotes = normalizeName((celebration as any).notes);
+    const normalizedLocation = normalizeName((celebration as any).location);
+    const isEleve = SPECIAL_ELEVE_KEYWORDS.some(
+      (keyword) => normalizedNotes.includes(keyword) || normalizedLocation.includes(keyword)
+    );
+
+    if (isEleve && eleveBand) {
+      celebrationBandMap.set(celebration.id, eleveBand.id);
+      return;
+    }
+
+    let diffDays = Math.floor((dayStartMs - firstSundayStartMs) / MS_PER_DAY);
+    if (diffDays < 0) diffDays = 0;
+    const weekIndex = Math.floor(diffDays / 7);
+
+    const rotationList = primaryRotationBands.length > 0 ? primaryRotationBands : sortedBands;
+    const band =
+      rotationList.length > 0 ? rotationList[weekIndex % rotationList.length] : eleveBand ?? null;
+
+    celebrationBandMap.set(celebration.id, band?.id ?? null);
+  });
+
+  for (const celebration of celebrationsList) {
     const celebrationAvailabilities = (availabilities || []).filter(
-      (availability) => availability.celebration_id === celebration.id && availability.available
+      (availability) => availability.celebration_id === celebration.id
+    );
+    const availabilityMap = new Map<string, boolean>(
+      celebrationAvailabilities.map((availability) => [availability.member_id, availability.available])
     );
     const bandFamilyIds: Set<string> = new Set();
 
-    let selectedBand: { id: string } | null = null;
-    if (!options.ministry || options.ministry === BAND_MINISTRY_NAME) {
-      if (bandsList.length > 0) {
-        selectedBand = bandsList[bandToggle % bandsList.length];
-        bandToggle += 1;
-      }
-    }
+    const shouldProcessBand =
+      !normalizedTargetMinistry || normalizedTargetMinistry === normalizedBandName;
+    if (shouldProcessBand && bandMinistry) {
+      const selectedBandId = celebrationBandMap.get(celebration.id);
+      const selectedBand = selectedBandId ? bandMapById.get(selectedBandId) ?? null : null;
 
-    if (selectedBand && bandMinistry) {
-      const bandRoles = bandMembers.filter((member) => member.band_id === selectedBand?.id);
-      for (const bandRole of bandRoles) {
-        const candidateProfile = profiles.find((profile) => profile.user_id === bandRole.member_id);
-        if (!candidateProfile) continue;
+      if (selectedBand) {
+        const bandRoles = bandMemberList.filter((member) => member.band_id === selectedBand.id);
 
-        const roleRecord = roles.find(
-          (role) => role.ministry_id === bandMinistry.id && role.name === bandRole.role_in_band
-        );
-
-        const assignmentKey = roleRecord
-          ? buildAssignmentKey(celebration.id, roleRecord.id)
-          : null;
-
-        if (assignmentKey && lockedKeys.has(assignmentKey) && options.preserveLocked) {
-          continue;
-        }
-
-        const isAvailable = celebrationAvailabilities.some(
-          (availability) => availability.member_id === bandRole.member_id
-        );
-
-        if (!isAvailable) {
+        if (bandRoles.length === 0) {
           warnings.push({
             celebrationId: celebration.id,
             celebrationStartsAt: celebration.starts_at,
             ministryId: bandMinistry.id,
             ministryName: bandMinistry.name,
-            roleId: roleRecord?.id ?? null,
-            roleName: bandRole.role_in_band,
-            reason: 'Sem membro disponivel para o papel na banda'
+            roleId: null,
+            roleName: 'Banda',
+            reason: 'Banda sem membros configurados'
           });
-          continue;
         }
 
-        if (roleRecord) {
+        for (const bandRole of bandRoles) {
+          const candidateProfile = profilesById.get(bandRole.member_id);
+          if (!candidateProfile) {
+            continue;
+          }
+
+           const availability = availabilityMap.get(bandRole.member_id);
+           if (availability !== true) {
+            warnings.push({
+              celebrationId: celebration.id,
+              celebrationStartsAt: celebration.starts_at,
+              ministryId: bandMinistry.id,
+              ministryName: bandMinistry.name,
+              roleId: null,
+              roleName: bandRole.role_in_band,
+              reason:
+                availability === false
+                  ? 'Membro da banda marcou indisponivel'
+                  : 'Membro da banda sem confirmacao de disponibilidade'
+            });
+            continue;
+          }
+
+          const roleRecord = roles.find(
+            (role) => role.ministry_id === bandMinistry.id && role.name === bandRole.role_in_band
+          );
+
+          if (!roleRecord) {
+            warnings.push({
+              celebrationId: celebration.id,
+              celebrationStartsAt: celebration.starts_at,
+              ministryId: bandMinistry.id,
+              ministryName: bandMinistry.name,
+              roleId: null,
+              roleName: bandRole.role_in_band,
+              reason: 'Papel da banda nao encontrado na tabela de roles'
+            });
+            continue;
+          }
+
+          const assignmentKey = buildAssignmentKey(celebration.id, roleRecord.id);
+          if (lockedKeys.has(assignmentKey) && options.preserveLocked) {
+            continue;
+          }
+
           assignmentsToInsert.push({
             celebration_id: celebration.id,
             ministry_id: bandMinistry.id,
@@ -194,16 +308,30 @@ export async function generateSchedule(
             locked: false
           });
           assignmentCount[bandRole.member_id] = (assignmentCount[bandRole.member_id] || 0) + 1;
-        }
 
-        if (candidateProfile.family_id) {
-          bandFamilyIds.add(candidateProfile.family_id);
+          if (candidateProfile.family_id) {
+            bandFamilyIds.add(candidateProfile.family_id);
+          }
         }
+      } else {
+        warnings.push({
+          celebrationId: celebration.id,
+          celebrationStartsAt: celebration.starts_at,
+          ministryId: bandMinistry.id,
+          ministryName: bandMinistry.name,
+          roleId: null,
+          roleName: 'Banda',
+          reason: 'Nenhuma banda configurada para esta celebracao'
+        });
       }
     }
 
     for (const ministry of derivedMinistries) {
-      if (options.ministry && options.ministry !== ministry.name && options.ministry !== BAND_MINISTRY_NAME) {
+      if (
+        normalizedTargetMinistry &&
+        normalizedTargetMinistry !== normalizeName(ministry.name) &&
+        normalizedTargetMinistry !== normalizedBandName
+      ) {
         continue;
       }
 
@@ -221,7 +349,7 @@ export async function generateSchedule(
 
         const availableCandidates = profiles.filter((profile) => {
           if (!candidateIds.includes(profile.user_id)) return false;
-          return celebrationAvailabilities.some((availability) => availability.member_id === profile.user_id);
+          return availabilityMap.get(profile.user_id) === true;
         });
 
         let selectedMember: Profile | undefined;

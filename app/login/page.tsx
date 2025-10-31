@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@lib/supabaseClient";
 
+const USERNAME_REGEX = /^[a-z0-9._-]+$/;
+
 export default function LoginPage() {
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
@@ -15,25 +17,29 @@ export default function LoginPage() {
     event.preventDefault();
     setLoading(true);
     setError(null);
-    let emailToUse = identifier.trim();
     try {
-      if (!emailToUse) {
-        throw new Error("Informe o usuario ou email.");
+      const trimmedIdentifier = identifier.trim();
+      if (!trimmedIdentifier) {
+        throw new Error("Informe usuario ou email.");
       }
-      if (!emailToUse.includes("@")) {
-        const response = await fetch("/api/auth/resolve", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: emailToUse })
-        });
-        const json = await response.json();
-        if (!response.ok || !json.email) {
-          throw new Error(json.error || "Usuario nao encontrado.");
-        }
-        emailToUse = json.email;
+      const normalizedIdentifier = trimmedIdentifier.toLowerCase();
+      const isEmail = normalizedIdentifier.includes("@");
+      if (!isEmail && !USERNAME_REGEX.test(normalizedIdentifier)) {
+        throw new Error("Usuario deve conter apenas letras, numeros e ._-");
       }
+
+      const response = await fetch("/api/auth/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: normalizedIdentifier })
+      });
+      const json = await response.json();
+      if (!response.ok || !json.email) {
+        throw new Error(json.error || "Usuario nao encontrado.");
+      }
+
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: emailToUse,
+        email: json.email,
         password
       });
       if (signInError) {
