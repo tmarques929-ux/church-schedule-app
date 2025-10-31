@@ -71,7 +71,7 @@ export default function LoginPage() {
                 Servir bem, amar melhor
               </span>
               <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2">
-                Suporte: ministerios@icctremembe.com
+                Suporte: tmarques9@hotmail.com
               </span>
             </div>
           </section>

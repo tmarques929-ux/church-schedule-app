@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 type MinistryOption = {
   id: string;
@@ -44,6 +44,15 @@ export default function AdminMinistryAssignmentsCard() {
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const resolveDisplayName = useCallback((name: string | null, username: string | null) => {
+    const normalizedUsername = username?.trim().toLowerCase();
+    if (normalizedUsername === "thiagomrib") {
+      return "Thiago Marques Ribeiro";
+    }
+    const trimmed = name?.trim();
+    return trimmed && trimmed.length > 0 ? trimmed : "Sem nome cadastrado";
+  }, []);
 
   useEffect(() => {
     async function loadMinistries() {
@@ -263,9 +272,9 @@ export default function AdminMinistryAssignmentsCard() {
                         : "border-white/10 bg-slate-900/60 hover:border-indigo-300/40 hover:bg-indigo-500/10"
                     }`}
                   >
-                    <span className="block text-sm font-semibold">{user.name ?? "Sem nome cadastrado"}</span>
+                    <span className="block text-sm font-semibold">{resolveDisplayName(user.name, user.username)}</span>
                     <span className="block text-xs text-indigo-100/70">
-                      @{user.username ?? "sem-username"} · {user.role ?? "MEMBER"}
+                      @{user.username ?? "sem-username"} Â· {user.role ?? "MEMBER"}
                     </span>
                   </button>
                 );
@@ -338,3 +347,4 @@ export default function AdminMinistryAssignmentsCard() {
     </section>
   );
 }
+

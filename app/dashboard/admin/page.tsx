@@ -21,12 +21,18 @@ export default async function AdminAreaPage() {
   }
   const { data: profile } = await supabase
     .from('profiles')
-    .select('name, role')
+    .select('name, role, username')
     .eq('user_id', user.id)
     .maybeSingle();
   if (!profile || profile.role !== 'ADMIN') {
     redirect('/dashboard');
   }
+
+  const metadata = (user.user_metadata as { username?: string } | null) ?? null;
+  const username = (profile.username ?? metadata?.username ?? '').trim().toLowerCase();
+  const isPrimaryAdmin = username === 'thiagomrib';
+  const memberName = profile.name?.trim();
+  const displayName = isPrimaryAdmin ? 'Thiago Marques Ribeiro' : memberName || 'Nome nao informado';
 
   return (
     <div className="min-h-screen bg-slate-950 bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 text-slate-100">
@@ -43,7 +49,7 @@ export default async function AdminAreaPage() {
               </p>
             </div>
             <div className="flex flex-col gap-3 text-sm text-indigo-100/80">
-              <span className="text-xs uppercase tracking-widest text-indigo-200/80">Acesso de {profile.name}</span>
+              <span className="text-xs uppercase tracking-widest text-indigo-200/80">Acesso de {displayName}</span>
               <Link
                 href="/dashboard"
                 className="inline-flex items-center gap-2 self-start rounded-full border border-white/10 bg-white/10 px-4 py-2 font-semibold transition hover:bg-white/20"

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@lib/supabaseServer";
-import { ensureAdmin } from "../_utils/ensureAdmin";
+import { ensureAdmin, ensureAuthenticated } from "../_utils/ensureAdmin";
 
 type AssignmentPayload = {
   userId?: unknown;
@@ -18,23 +18,33 @@ function normalizeUuid(value: unknown): string | null {
 }
 
 export async function GET(request: Request) {
-  const adminCheck = await ensureAdmin();
-  if ("errorResponse" in adminCheck) {
-    return adminCheck.errorResponse;
+  const authResult = await ensureAuthenticated();
+  if ("errorResponse" in authResult) {
+    return authResult.errorResponse;
   }
+  const { user } = authResult;
 
   const url = new URL(request.url);
   const userIdParam = url.searchParams.get("userId");
-  const userId = normalizeUuid(userIdParam);
+  const normalizedParam = userIdParam ? normalizeUuid(userIdParam) : null;
 
-  if (!userId) {
+  if (userIdParam && !normalizedParam) {
     return NextResponse.json({ error: "Informe um userId valido." }, { status: 400 });
+  }
+
+  const targetUserId = normalizedParam ?? user.id;
+
+  if (targetUserId !== user.id) {
+    const adminCheck = await ensureAdmin();
+    if ("errorResponse" in adminCheck) {
+      return adminCheck.errorResponse;
+    }
   }
 
   const { data, error } = await supabaseAdmin
     .from("member_ministries")
     .select("ministry_id, is_leader, ministries(name, description, active)")
-    .eq("member_id", userId);
+    .eq("member_id", targetUserId);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

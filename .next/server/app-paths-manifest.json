@@ -1,6 +1,9 @@
 {
+  "/not-found": "app/not-found.js",
+  "/api/ministries/route": "app/api/ministries/route.js",
   "/login/page": "app/login/page.js",
-  "/dashboard/availabilities/page": "app/dashboard/availabilities/page.js",
   "/dashboard/page": "app/dashboard/page.js",
-  "/dashboard/schedules/page": "app/dashboard/schedules/page.js"
+  "/dashboard/schedules/page": "app/dashboard/schedules/page.js",
+  "/dashboard/celebrations/page": "app/dashboard/celebrations/page.js",
+  "/dashboard/availabilities/page": "app/dashboard/availabilities/page.js"
 }

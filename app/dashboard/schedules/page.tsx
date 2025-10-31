@@ -11,6 +11,13 @@ interface ScheduleRun {
   status: 'draft' | 'published' | string;
 }
 
+interface ScheduleCelebrationDownload {
+  id: string;
+  title: string;
+  dateLabel: string;
+  location: string | null;
+}
+
 const statusStyles: Record<string, string> = {
   draft: 'bg-yellow-500/20 text-yellow-200 border-yellow-300/40',
   published: 'bg-emerald-500/20 text-emerald-100 border-emerald-300/40'
@@ -27,6 +34,12 @@ export default function SchedulesPage() {
   const [loadingPublish, setLoadingPublish] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [expandedScheduleId, setExpandedScheduleId] = useState<string | null>(null);
+  const [scheduleCelebrations, setScheduleCelebrations] = useState<
+    Record<string, ScheduleCelebrationDownload[]>
+  >({});
+  const [loadingCelebrations, setLoadingCelebrations] = useState<Record<string, boolean>>({});
+  const [celebrationsError, setCelebrationsError] = useState<Record<string, string | null>>({});
 
   const loadSchedules = useCallback(async () => {
     const { data, error } = await supabase
@@ -147,15 +160,117 @@ export default function SchedulesPage() {
     const json = await response.json();
     if (!response.ok) {
       setError(json.error || "Nao foi possivel publicar a escala.");
-    } else {
-      setSuccess("Escala publicada! As equipes ja podem consultar no painel.");
-      await loadSchedules();
+      } else {
+        setSuccess("Escala publicada! As equipes ja podem consultar no painel.");
+        await loadSchedules();
+      }
+      setLoadingPublish(null);
     }
-    setLoadingPublish(null);
-  }
 
-  return (
-    <div className="min-h-screen bg-slate-950 bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 text-slate-100">
+    async function toggleCelebrations(scheduleId: string) {
+      if (expandedScheduleId === scheduleId) {
+        setExpandedScheduleId(null);
+        return;
+      }
+
+      setExpandedScheduleId(scheduleId);
+
+    if (scheduleCelebrations[scheduleId] !== undefined || loadingCelebrations[scheduleId]) {
+      return;
+    }
+
+      setLoadingCelebrations((prev) => ({ ...prev, [scheduleId]: true }));
+      setCelebrationsError((prev) => ({ ...prev, [scheduleId]: null }));
+
+      try {
+        const response = await fetch(`/api/schedules/${scheduleId}`);
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.error || "Nao foi possivel carregar as celebracoes.");
+        }
+
+        const celebrationMap = new Map<
+          string,
+          { id: string; title: string | null; date: string | null; location: string | null }
+        >();
+
+        (payload?.references?.celebrations ?? []).forEach((celebration: any) => {
+          celebrationMap.set(celebration.id, {
+            id: celebration.id,
+            title: celebration.notes ?? celebration.title ?? null,
+            date: celebration.starts_at ?? null,
+            location: celebration.location ?? null
+          });
+        });
+
+        (payload?.assignments ?? []).forEach((assignment: any) => {
+          if (!assignment.celebrationId) {
+            return;
+          }
+          const current =
+            celebrationMap.get(assignment.celebrationId) ??
+            {
+              id: assignment.celebrationId,
+              title: null,
+              date: null,
+              location: null
+            };
+          if (!current.date && assignment.date) {
+            current.date = assignment.date;
+          }
+          if (!current.location && assignment.location) {
+            current.location = assignment.location;
+          }
+          if (!current.title) {
+            current.title = assignment.ministry ? `Celebracao ${assignment.ministry}` : null;
+          }
+          celebrationMap.set(assignment.celebrationId, current);
+        });
+
+        const celebrationsList = Array.from(celebrationMap.values())
+          .sort((a, b) => {
+            if (!a.date || !b.date) {
+              return (a.title ?? "").localeCompare(b.title ?? "");
+            }
+            return new Date(a.date).getTime() - new Date(b.date).getTime();
+          })
+          .map((item, index) => {
+            const baseTitle = item.title ?? `Celebracao ${index + 1}`;
+            const dateLabel = item.date
+              ? new Date(item.date).toLocaleString("pt-BR", {
+                  dateStyle: "full",
+                  timeStyle: "short"
+                })
+              : "Data a definir";
+            return {
+              id: item.id,
+              title: baseTitle,
+              dateLabel,
+              location: item.location ?? null
+            } as ScheduleCelebrationDownload;
+          });
+
+        setScheduleCelebrations((prev) => ({
+          ...prev,
+          [scheduleId]: celebrationsList
+        }));
+      } catch (caught) {
+        const message =
+          caught instanceof Error ? caught.message : "Nao foi possivel carregar as celebracoes.";
+        setCelebrationsError((prev) => ({
+          ...prev,
+          [scheduleId]: message
+        }));
+      } finally {
+        setLoadingCelebrations((prev) => ({
+          ...prev,
+          [scheduleId]: false
+        }));
+      }
+    }
+
+    return (
+      <div className="min-h-screen bg-slate-950 bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 text-slate-100">
       <div className="mx-auto flex max-w-6xl flex-col gap-10 px-6 py-12">
         <header className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-10 shadow-xl shadow-indigo-900/20 backdrop-blur">
           <div className="absolute -left-10 top-1/2 h-40 w-40 -translate-y-1/2 rounded-full bg-sky-500/20 blur-3xl" />
@@ -318,9 +433,49 @@ export default function SchedulesPage() {
                                 href={`/api/schedules/${schedule.id}?format=pdf`}
                                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-white/20"
                               >
-                                Exportar PDF
+                                Exportar PDF completo
                               </a>
+                              <button
+                                type="button"
+                                onClick={() => toggleCelebrations(schedule.id)}
+                                className="inline-flex items-center gap-2 rounded-full border border-indigo-300/40 bg-indigo-500/40 px-4 py-2 text-sm font-semibold text-indigo-50 transition hover:bg-indigo-500/60"
+                              >
+                                {expandedScheduleId === schedule.id
+                                  ? "Ocultar celebracoes"
+                                  : "PDF por celebracao"}
+                              </button>
                             </footer>
+                            {expandedScheduleId === schedule.id && (
+                              <div className="mt-3 w-full rounded-2xl border border-indigo-300/30 bg-indigo-500/10 p-4 text-xs text-sky-100/80 sm:text-sm">
+                                {loadingCelebrations[schedule.id] ? (
+                                  <p>Carregando celebracoes...</p>
+                                ) : celebrationsError[schedule.id] ? (
+                                  <p className="text-rose-200">{celebrationsError[schedule.id]}</p>
+                                ) : (scheduleCelebrations[schedule.id] ?? []).length > 0 ? (
+                                  <div className="flex flex-col gap-3">
+                                    {scheduleCelebrations[schedule.id].map((celebration) => (
+                                      <a
+                                        key={celebration.id}
+                                        href={`/api/schedules/${schedule.id}?format=pdf&celebrationId=${celebration.id}`}
+                                        className="flex flex-col gap-1 rounded-xl border border-white/10 bg-white/10 px-4 py-3 transition hover:bg-white/20"
+                                      >
+                                        <span className="text-sm font-semibold text-white">
+                                          {celebration.title}
+                                        </span>
+                                        <span>{celebration.dateLabel}</span>
+                                        <span className="text-xs text-sky-100/70">
+                                          {celebration.location
+                                            ? `Local: ${celebration.location}`
+                                            : "Local nao informado"}
+                                        </span>
+                                      </a>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p>Nenhuma celebracao encontrada para esta escala.</p>
+                                )}
+                              </div>
+                            )}
                           </article>
                         );
                       })}

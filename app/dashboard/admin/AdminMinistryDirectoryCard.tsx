@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 type MinistryEntry = {
   id: string;
@@ -31,6 +31,15 @@ export default function AdminMinistryDirectoryCard() {
   const [formError, setFormError] = useState<string | null>(null);
   const [formMessage, setFormMessage] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+
+  const resolveDisplayName = useCallback((name: string | null, username: string | null) => {
+    const normalizedUsername = username?.trim().toLowerCase();
+    if (normalizedUsername === "thiagomrib") {
+      return "Thiago Marques Ribeiro";
+    }
+    const trimmed = name?.trim();
+    return trimmed && trimmed.length > 0 ? trimmed : "Sem nome cadastrado";
+  }, []);
 
   async function fetchMinistries() {
     setLoading(true);
@@ -209,7 +218,7 @@ export default function AdminMinistryDirectoryCard() {
                       ministry.leaders.map((leader) => (
                         <li key={leader.userId} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
                           <span className="block font-semibold text-white">
-                            {leader.name ?? "Sem nome cadastrado"}
+                            {resolveDisplayName(leader.name, leader.username)}
                           </span>
                           <span className="text-xs text-indigo-100/70">@{leader.username ?? "sem-username"}</span>
                         </li>
@@ -228,10 +237,10 @@ export default function AdminMinistryDirectoryCard() {
                       ministry.members.map((member) => (
                         <li key={member.userId} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
                           <span className="block font-semibold text-white">
-                            {member.name ?? "Sem nome cadastrado"}
+                            {resolveDisplayName(member.name, member.username)}
                           </span>
                           <span className="text-xs text-indigo-100/70">
-                            @{member.username ?? "sem-username"} · {member.role ?? "MEMBER"}
+                            @{member.username ?? "sem-username"} Â· {member.role ?? "MEMBER"}
                           </span>
                         </li>
                       ))
@@ -248,3 +257,4 @@ export default function AdminMinistryDirectoryCard() {
     </section>
   );
 }
+
