@@ -62,7 +62,7 @@ export class ExistingScheduleError extends Error {
 }
 
 const BAND_MINISTRY_NAME = 'Bandas';
-const DERIVED_MINISTRY_NAMES = ['multimidia', 'audio', 'iluminacao'];
+const DERIVED_MINISTRY_NAMES = ['multimidia', 'audio', 'iluminacao', 'ordem de culto'];
 const SPECIAL_ELEVE_KEYWORDS = ['eleve', '30 semanas', '30-semanas', '30semana'];
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -136,16 +136,6 @@ export async function generateSchedule(
     existingAssignments = assignmentsData ?? [];
   }
 
-  const assignmentCount: Record<string, number> = {};
-  existingAssignments.forEach((assignment) => {
-    assignmentCount[assignment.member_id] = (assignmentCount[assignment.member_id] || 0) + 1;
-  });
-
-  const lockedKeys = new Set<string>();
-  existingAssignments
-    .filter((assignment) => assignment.locked)
-    .forEach((assignment) => lockedKeys.add(buildAssignmentKey(assignment.celebration_id, assignment.role_id)));
-
   const assignmentsToInsert: Array<{
     celebration_id: string;
     ministry_id: string;
@@ -158,9 +148,38 @@ export async function generateSchedule(
   const normalizeName = (value: string | null | undefined) =>
     value ? value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() : '';
 
+  const celebrationFamilyAssignments = new Map<string, Set<string>>();
+  const getAssignedFamilySet = (celebrationId: string): Set<string> => {
+    let set = celebrationFamilyAssignments.get(celebrationId);
+    if (!set) {
+      set = new Set<string>();
+      celebrationFamilyAssignments.set(celebrationId, set);
+    }
+    return set;
+  };
+  const registerFamily = (celebrationId: string, familyId: string | null | undefined) => {
+    if (!familyId) return;
+    const set = getAssignedFamilySet(celebrationId);
+    set.add(familyId);
+  };
+
   const profilesById = new Map<string, Profile>(
     profiles.map((profile) => [profile.user_id, profile] as [string, Profile])
   );
+
+  const assignmentCount: Record<string, number> = {};
+  existingAssignments.forEach((assignment) => {
+    assignmentCount[assignment.member_id] = (assignmentCount[assignment.member_id] || 0) + 1;
+    const profile = profilesById.get(assignment.member_id);
+    if (profile?.family_id) {
+      registerFamily(assignment.celebration_id, profile.family_id);
+    }
+  });
+
+  const lockedKeys = new Set<string>();
+  existingAssignments
+    .filter((assignment) => assignment.locked)
+    .forEach((assignment) => lockedKeys.add(buildAssignmentKey(assignment.celebration_id, assignment.role_id)));
 
   const bandList: Band[] = ((bands as Band[] | null | undefined) ?? []).filter(
     (band) => band.active !== false
@@ -232,7 +251,7 @@ export async function generateSchedule(
     const availabilityMap = new Map<string, boolean>(
       celebrationAvailabilities.map((availability) => [availability.member_id, availability.available])
     );
-    const bandFamilyIds: Set<string> = new Set();
+    const assignedFamilyIds = getAssignedFamilySet(celebration.id);
 
     const shouldProcessBand =
       !normalizedTargetMinistry || normalizedTargetMinistry === normalizedBandName;
@@ -308,10 +327,7 @@ export async function generateSchedule(
             locked: false
           });
           assignmentCount[bandRole.member_id] = (assignmentCount[bandRole.member_id] || 0) + 1;
-
-          if (candidateProfile.family_id) {
-            bandFamilyIds.add(candidateProfile.family_id);
-          }
+          registerFamily(celebration.id, candidateProfile.family_id);
         }
       } else {
         warnings.push({
@@ -354,7 +370,7 @@ export async function generateSchedule(
 
         let selectedMember: Profile | undefined;
         const familyCandidates = availableCandidates.filter(
-          (candidate) => candidate.family_id && bandFamilyIds.has(candidate.family_id as string)
+          (candidate) => candidate.family_id && assignedFamilyIds.has(candidate.family_id as string)
         );
 
         if (familyCandidates.length > 0) {
@@ -392,6 +408,7 @@ export async function generateSchedule(
           locked: false
         });
         assignmentCount[selectedMember.user_id] = (assignmentCount[selectedMember.user_id] || 0) + 1;
+        registerFamily(celebration.id, selectedMember.family_id);
       }
     }
   }

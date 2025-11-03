@@ -9,6 +9,7 @@ import UpdateUsernameCard from "../UpdateUsernameCard";
 import AdminMinistryAssignmentsCard from "./AdminMinistryAssignmentsCard";
 import AdminMinistryDirectoryCard from "./AdminMinistryDirectoryCard";
 import AdminAvailabilitiesOverviewCard from "./AdminAvailabilitiesOverviewCard";
+import AdminFamilyLinkCard from "./AdminFamilyLinkCard";
 
 
 export default async function AdminAreaPage() {
@@ -64,6 +65,7 @@ export default async function AdminAreaPage() {
         <ResetPasswordCard />
         <UpdateUsernameCard />
         <AdminMinistryAssignmentsCard />
+        <AdminFamilyLinkCard />
         <AdminMinistryDirectoryCard />
         <AdminAvailabilitiesOverviewCard />
         <MemberAssignmentsSearchCard />

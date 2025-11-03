@@ -19,7 +19,8 @@ VALUES
   (gen_random_uuid(), 'Bandas', 'Ministério de bandas', true),
   (gen_random_uuid(), 'Multimídia', 'Projeção e slides', true),
   (gen_random_uuid(), 'Áudio', 'Operação de som', true),
-  (gen_random_uuid(), 'Iluminação', 'Luz cênica', true)
+  (gen_random_uuid(), 'Iluminação', 'Luz cênica', true),
+  (gen_random_uuid(), 'Ordem de Culto', 'Coordenação geral da celebração', true)
 ON CONFLICT (name) DO NOTHING;
 
 -- ROLES PARA CADA MINISTÉRIO
@@ -46,6 +47,12 @@ INSERT INTO public.roles (id, ministry_id, name)
 SELECT gen_random_uuid(), m.id, r
 FROM public.ministries m, unnest(array['Light Op']) r
 WHERE m.name = 'Iluminação';
+
+-- Ordem de Culto
+INSERT INTO public.roles (id, ministry_id, name)
+SELECT gen_random_uuid(), m.id, r
+FROM public.ministries m, unnest(array['Coordenação']) r
+WHERE m.name = 'Ordem de Culto';
 
 -- BANDAS INICIAIS
 INSERT INTO public.bands (id, name, description, active)

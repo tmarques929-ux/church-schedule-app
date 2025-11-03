@@ -5,10 +5,19 @@ import { ensureAdmin } from '../_utils/ensureAdmin';
 
 const DEFAULT_PASSWORD = process.env.DEFAULT_USER_PASSWORD || 'MudarSenha123';
 const DEFAULT_EMAIL_DOMAIN = (process.env.DEFAULT_USER_EMAIL_DOMAIN || 'voluntarios.icctremembe.local').toLowerCase();
+const MIN_FAMILY_NAME_LENGTH = 3;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isJsonRequest(req: Request) {
   const ct = req.headers.get('content-type') || '';
   return ct.includes('application/json');
+}
+
+function normalizeUuid(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!UUID_REGEX.test(trimmed)) return null;
+  return trimmed;
 }
 
 export async function POST(request: Request) {
@@ -30,7 +39,7 @@ export async function POST(request: Request) {
     switch (action) {
       // ------------------------------------------------------
       case 'create': {
-        const { name, role, username, ministryIds } = body;
+        const { name, role, username, ministryIds, family: rawFamily } = body;
 
         if (!name || !username) {
           return NextResponse.json({ error: 'Nome e username sao obrigatorios' }, { status: 400 });
@@ -66,6 +75,75 @@ export async function POST(request: Request) {
                 .filter((v: string) => v.length > 0)
             : [];
 
+        const familyPayload = rawFamily && typeof rawFamily === 'object' ? rawFamily : null;
+        const familyMemberIdsInput = Array.isArray(familyPayload?.memberIds) ? familyPayload.memberIds : [];
+        const familyMemberIds = Array.from(
+          new Set(
+            familyMemberIdsInput
+              .map((value: unknown) => normalizeUuid(value))
+              .filter((value): value is string => Boolean(value))
+          )
+        );
+        const newFamilyNameRaw =
+          typeof familyPayload?.newFamilyName === 'string' ? familyPayload.newFamilyName.trim() : '';
+
+        if (newFamilyNameRaw && newFamilyNameRaw.length > 0 && newFamilyNameRaw.length < MIN_FAMILY_NAME_LENGTH) {
+          return NextResponse.json(
+            { error: `Informe um nome de familia com pelo menos ${MIN_FAMILY_NAME_LENGTH} caracteres.` },
+            { status: 400 }
+          );
+        }
+
+        let familyProfiles: Array<{ user_id: string; family_id: string | null; name: string | null }> = [];
+        let existingFamilyId: string | null = null;
+
+        if (familyMemberIds.length > 0) {
+          const { data: profiles, error: profilesError } = await supabaseAdmin
+            .from('profiles')
+            .select('user_id, family_id, name')
+            .in('user_id', familyMemberIds);
+
+          if (profilesError) {
+            return NextResponse.json({ error: profilesError.message }, { status: 400 });
+          }
+
+          const fetchedProfiles = profiles ?? [];
+          const foundIds = new Set(fetchedProfiles.map((profile) => profile.user_id));
+          const missingIds = familyMemberIds.filter((id) => !foundIds.has(id));
+          if (missingIds.length > 0) {
+            return NextResponse.json(
+              { error: 'Um ou mais voluntarios do vinculo familiar nao foram encontrados.', missingIds },
+              { status: 400 }
+            );
+          }
+
+          familyProfiles = fetchedProfiles;
+          const familyIds = Array.from(
+            new Set(
+              familyProfiles
+                .map((profile) => profile.family_id)
+                .filter((value): value is string => Boolean(value))
+            )
+          );
+          if (familyIds.length > 1) {
+            return NextResponse.json(
+              {
+                error:
+                  'Os voluntarios selecionados pertencem a familias diferentes. Ajuste o vinculo antes de continuar.'
+              },
+              { status: 400 }
+            );
+          }
+          existingFamilyId = familyIds[0] ?? null;
+        }
+
+        const previousFamilyMap = new Map<string, string | null>(
+          familyProfiles.map((profile) => [profile.user_id, profile.family_id])
+        );
+        let familyIdToUse: string | null = existingFamilyId;
+        let newlyCreatedFamilyId: string | null = null;
+        let updatedFamilyMemberIds: string[] = [];
+
         const { data: created, error: creationError } = await supabaseAdmin.auth.admin.createUser({
           email: generatedEmail,
           password: DEFAULT_PASSWORD,
@@ -92,6 +170,93 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: profileInsertError.message }, { status: 400 });
         }
 
+        if (familyMemberIds.length > 0 || newFamilyNameRaw) {
+          if (!familyIdToUse) {
+            let finalFamilyName = newFamilyNameRaw;
+            if (!finalFamilyName) {
+              const referenceName =
+                familyProfiles.find((profile) => profile.name)?.name?.trim() ?? String(name ?? '').trim();
+              const base = referenceName.split(' ')[0] || referenceName || 'Nova';
+              finalFamilyName = `Familia ${base}`.trim();
+            }
+            finalFamilyName = finalFamilyName.replace(/\s+/g, ' ').trim();
+            if (finalFamilyName.length < MIN_FAMILY_NAME_LENGTH) {
+              await supabaseAdmin.from('profiles').delete().eq('user_id', created.user.id);
+              await supabaseAdmin.auth.admin.deleteUser(created.user.id);
+              return NextResponse.json(
+                { error: `Informe um nome de familia com pelo menos ${MIN_FAMILY_NAME_LENGTH} caracteres.` },
+                { status: 400 }
+              );
+            }
+
+            const { data: existingFamilyRow, error: existingFamilyLookupError } = await supabaseAdmin
+              .from('families')
+              .select('id')
+              .eq('name', finalFamilyName)
+              .maybeSingle();
+            if (existingFamilyLookupError) {
+              await supabaseAdmin.from('profiles').delete().eq('user_id', created.user.id);
+              await supabaseAdmin.auth.admin.deleteUser(created.user.id);
+              return NextResponse.json({ error: existingFamilyLookupError.message }, { status: 400 });
+            }
+
+            if (existingFamilyRow?.id) {
+              familyIdToUse = existingFamilyRow.id;
+            } else {
+              const { data: newFamilyRow, error: familyInsertError } = await supabaseAdmin
+                .from('families')
+                .insert({ name: finalFamilyName })
+                .select('id')
+                .single();
+              if (familyInsertError) {
+                await supabaseAdmin.from('profiles').delete().eq('user_id', created.user.id);
+                await supabaseAdmin.auth.admin.deleteUser(created.user.id);
+                return NextResponse.json({ error: familyInsertError.message }, { status: 400 });
+              }
+              familyIdToUse = newFamilyRow?.id ?? null;
+              newlyCreatedFamilyId = familyIdToUse;
+            }
+          }
+
+          if (familyIdToUse) {
+            const { error: profileFamilyUpdateError } = await supabaseAdmin
+              .from('profiles')
+              .update({ family_id: familyIdToUse })
+              .eq('user_id', created.user.id);
+
+            if (profileFamilyUpdateError) {
+              if (newlyCreatedFamilyId) {
+                await supabaseAdmin.from('families').delete().eq('id', newlyCreatedFamilyId);
+              }
+              await supabaseAdmin.auth.admin.deleteUser(created.user.id);
+              return NextResponse.json({ error: profileFamilyUpdateError.message }, { status: 400 });
+            }
+
+            if (familyMemberIds.length > 0) {
+              const membersToUpdate = familyProfiles
+                .filter((profile) => profile.family_id !== familyIdToUse)
+                .map((profile) => profile.user_id);
+
+              if (membersToUpdate.length > 0) {
+                const { error: existingMembersUpdateError } = await supabaseAdmin
+                  .from('profiles')
+                  .update({ family_id: familyIdToUse })
+                  .in('user_id', membersToUpdate);
+
+                if (existingMembersUpdateError) {
+                  if (newlyCreatedFamilyId) {
+                    await supabaseAdmin.from('families').delete().eq('id', newlyCreatedFamilyId);
+                  }
+                  await supabaseAdmin.from('profiles').delete().eq('user_id', created.user.id);
+                  await supabaseAdmin.auth.admin.deleteUser(created.user.id);
+                  return NextResponse.json({ error: existingMembersUpdateError.message }, { status: 400 });
+                }
+                updatedFamilyMemberIds = membersToUpdate;
+              }
+            }
+          }
+        }
+
         if (normalizedMinistryIds.length > 0) {
           const insertRows = normalizedMinistryIds.map((ministryId: string) => ({
             member_id: created.user.id,
@@ -102,6 +267,20 @@ export async function POST(request: Request) {
             .upsert(insertRows, { onConflict: 'member_id, ministry_id' });
 
           if (ministriesInsertError) {
+            if (updatedFamilyMemberIds.length > 0) {
+              await Promise.all(
+                updatedFamilyMemberIds.map((memberId) => {
+                  const previousFamilyId = previousFamilyMap.get(memberId) ?? null;
+                  return supabaseAdmin
+                    .from('profiles')
+                    .update({ family_id: previousFamilyId })
+                    .eq('user_id', memberId);
+                })
+              );
+            }
+            if (newlyCreatedFamilyId) {
+              await supabaseAdmin.from('families').delete().eq('id', newlyCreatedFamilyId);
+            }
             await supabaseAdmin.from('profiles').delete().eq('user_id', created.user.id);
             await supabaseAdmin.auth.admin.deleteUser(created.user.id);
             return NextResponse.json({ error: ministriesInsertError.message }, { status: 400 });

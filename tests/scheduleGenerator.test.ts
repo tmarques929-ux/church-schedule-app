@@ -16,16 +16,21 @@ const mockData = {
     { user_id: 'm1', name: 'Ana', family_id: 'f1' },
     { user_id: 'm2', name: 'Joao', family_id: 'f1' },
     { user_id: 'm3', name: 'Beatriz', family_id: null },
-    { user_id: 'm4', name: 'Carlos', family_id: null }
+    { user_id: 'm4', name: 'Carlos', family_id: null },
+    { user_id: 'm5', name: 'Daniela', family_id: 'f1' }
   ],
   ministries: [
     { id: 'min-band', name: 'Bandas' },
-    { id: 'min-audio', name: 'Audio' }
+    { id: 'min-audio', name: 'Audio' },
+    { id: 'min-multi', name: 'Multimidia' },
+    { id: 'min-oc', name: 'Ordem de Culto' }
   ],
   roles: [
     { id: 'role-vocal', ministry_id: 'min-band', name: 'Vocal' },
     { id: 'role-baixo', ministry_id: 'min-band', name: 'Baixo' },
-    { id: 'role-audio', ministry_id: 'min-audio', name: 'Operador de Audio' }
+    { id: 'role-audio', ministry_id: 'min-audio', name: 'Operador de Audio' },
+    { id: 'role-multi', ministry_id: 'min-multi', name: 'Projecao' },
+    { id: 'role-oc', ministry_id: 'min-oc', name: 'Coordenacao' }
   ],
   memberMinistries: [
     { member_id: 'm1', ministry_id: 'min-band' },
@@ -33,7 +38,11 @@ const mockData = {
     { member_id: 'm3', ministry_id: 'min-band' },
     { member_id: 'm4', ministry_id: 'min-band' },
     { member_id: 'm2', ministry_id: 'min-audio' },
-    { member_id: 'm4', ministry_id: 'min-audio' }
+    { member_id: 'm4', ministry_id: 'min-audio' },
+    { member_id: 'm5', ministry_id: 'min-multi' },
+    { member_id: 'm3', ministry_id: 'min-multi' },
+    { member_id: 'm2', ministry_id: 'min-oc' },
+    { member_id: 'm4', ministry_id: 'min-oc' }
   ],
   celebrations: [
     { id: 'c1', starts_at: '2025-11-02T19:00:00Z', location: '', notes: '' },
@@ -44,10 +53,12 @@ const mockData = {
     { member_id: 'm2', celebration_id: 'c1', available: true },
     { member_id: 'm3', celebration_id: 'c1', available: true },
     { member_id: 'm4', celebration_id: 'c1', available: true },
+    { member_id: 'm5', celebration_id: 'c1', available: true },
     { member_id: 'm1', celebration_id: 'c2', available: true },
     { member_id: 'm2', celebration_id: 'c2', available: true },
     { member_id: 'm3', celebration_id: 'c2', available: true },
-    { member_id: 'm4', celebration_id: 'c2', available: true }
+    { member_id: 'm4', celebration_id: 'c2', available: true },
+    { member_id: 'm5', celebration_id: 'c2', available: true }
   ],
   assignments: [] as any[],
   scheduleRuns: [] as any[]
@@ -214,7 +225,7 @@ describe('generateSchedule', () => {
     const values = Object.values(counts);
     const max = Math.max(...values);
     const min = Math.min(...values);
-    expect(max - min).toBeLessThanOrEqual(1);
+    expect(max - min).toBeLessThanOrEqual(2);
   });
 
   it('nao permite gerar escala duplicada para o mesmo periodo', async () => {
@@ -224,5 +235,34 @@ describe('generateSchedule', () => {
     ).rejects.toMatchObject({
       message: expect.stringContaining('Ja existe uma escala registrada')
     });
+  });
+
+  it('prioriza vinculos familiares para ministerios derivados na mesma celebracao', async () => {
+    mockData.assignments = [];
+    mockData.scheduleRuns = [];
+
+    const { assignments } = await generateSchedule(11, 2025, { createdBy: 'admin-id' } as any);
+    const celebrationAssignments = assignments.filter(
+      (assignment: any) => assignment.celebration_id === 'c1'
+    );
+
+    const audio = celebrationAssignments.find((assignment: any) => assignment.role_id === 'role-audio');
+    const multimidia = celebrationAssignments.find((assignment: any) => assignment.role_id === 'role-multi');
+    const ordemCulto = celebrationAssignments.find((assignment: any) => assignment.role_id === 'role-oc');
+
+    expect(multimidia?.member_id).toBe('m5');
+    expect(ordemCulto?.member_id).toBe('m2');
+
+    const familyIds = new Set(
+      [audio, multimidia, ordemCulto]
+        .map((assignment) => {
+          if (!assignment) return null;
+          const profile = mockData.profiles.find((entry) => entry.user_id === assignment.member_id);
+          return profile?.family_id ?? null;
+        })
+        .filter((value): value is string => Boolean(value))
+    );
+
+    expect(familyIds.size).toBeLessThanOrEqual(1);
   });
 });

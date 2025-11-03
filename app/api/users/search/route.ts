@@ -48,7 +48,7 @@ export async function GET(request: Request) {
 
   const { data: profiles, error: profilesError } = await supabaseAdmin
     .from('profiles')
-    .select('user_id, name, username, role')
+    .select('user_id, name, username, role, family_id, families(id, name)')
     .or(`name.ilike.${ilikeTerm},username.ilike.${ilikeTerm}`)
     .order('name')
     .limit(limit);
@@ -57,6 +57,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: profilesError.message }, { status: 400 });
   }
 
-  return NextResponse.json({ results: profiles ?? [] });
-}
+  const formatted =
+    profiles?.map((profile: any) => ({
+      user_id: profile.user_id,
+      name: profile.name,
+      username: profile.username,
+      role: profile.role,
+      family_id: profile.family_id ?? null,
+      family_name: profile.families?.name ?? null
+    })) ?? [];
 
+  return NextResponse.json({ results: formatted });
+}
