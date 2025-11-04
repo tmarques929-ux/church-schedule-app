@@ -6,14 +6,11 @@ import { createServerComponentSupabaseClient } from "@supabase/auth-helpers-next
 import Link from "next/link";
 import ScheduleGeneratorCard from "../ScheduleGeneratorCard";
 import ResetPasswordCard from "../ResetPasswordCard";
-import MemberAssignmentsSearchCard from "../schedules/MemberAssignmentsSearchCard";
 import UpdateUsernameCard from "../UpdateUsernameCard";
 import AdminMinistryAssignmentsCard from "./AdminMinistryAssignmentsCard";
 import AdminMinistryDirectoryCard from "./AdminMinistryDirectoryCard";
 import AdminAvailabilitiesOverviewCard from "./AdminAvailabilitiesOverviewCard";
 import AdminFamilyLinkCard from "./AdminFamilyLinkCard";
-
-export const experimental_ppr = true;
 
 export default function AdminAreaPage() {
   return (
@@ -145,7 +142,6 @@ async function AdminAreaContent() {
       <AdminFamilyLinkCard />
       <AdminMinistryDirectoryCard />
       <AdminAvailabilitiesOverviewCard />
-      <MemberAssignmentsSearchCard />
     </>
   );
 }

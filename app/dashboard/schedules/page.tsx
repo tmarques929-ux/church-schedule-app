@@ -104,6 +104,37 @@ export default function SchedulesPage() {
     }, {});
   }, [schedules]);
 
+  function formatCoverageDeficits(deficits?: any[], requiredPercentage?: number) {
+    if (!Array.isArray(deficits) || deficits.length === 0) {
+      return null;
+    }
+    const requiredPercent = Math.round(((requiredPercentage ?? 0.7) as number) * 100);
+    return deficits
+      .map((item) => {
+        const name = item?.ministryName ?? 'Ministerio';
+        const totalMembers =
+          typeof item?.totalMembers === 'number' && !Number.isNaN(item.totalMembers)
+            ? item.totalMembers
+            : 0;
+        const availableMembers =
+          typeof item?.availableMembers === 'number' && !Number.isNaN(item.availableMembers)
+            ? item.availableMembers
+            : 0;
+        const rawCoverage =
+          typeof item?.coverage === 'number' && !Number.isNaN(item.coverage)
+            ? item.coverage
+            : totalMembers > 0
+            ? availableMembers / totalMembers
+            : 0;
+        const currentPercent = Math.round(rawCoverage * 100);
+        if (totalMembers === 0) {
+          return `${name}: nenhum membro confirmado (minimo ${requiredPercent}%)`;
+        }
+        return `${name}: ${currentPercent}% (${availableMembers}/${totalMembers}) - minimo ${requiredPercent}%`;
+      })
+      .join(' | ');
+  }
+
   async function handleGenerate() {
     if (!month) return;
     if (existingScheduleForSelection) {
@@ -121,7 +152,12 @@ export default function SchedulesPage() {
     });
     const json = await response.json();
     if (!response.ok) {
-      setError(json.error || "Erro ao gerar nova escala. Revise suas permissoes ou tente novamente.");
+      const coverageMessage = formatCoverageDeficits(json.deficits, json.requiredPercentage);
+      setError(
+        coverageMessage
+          ? `${json.error || "Nao foi possivel gerar nova escala."} ${coverageMessage}`
+          : json.error || "Erro ao gerar nova escala. Revise suas permissoes ou tente novamente."
+      );
     } else {
       setSuccess("Escala gerada com sucesso! Reveja os detalhes antes de publicar.");
       await loadSchedules();
@@ -155,7 +191,12 @@ export default function SchedulesPage() {
     });
     const json = await response.json();
     if (!response.ok) {
-      setError(json.error || "Nao foi possivel gerar a nova escala.");
+      const coverageMessage = formatCoverageDeficits(json.deficits, json.requiredPercentage);
+      setError(
+        coverageMessage
+          ? `${json.error || "Nao foi possivel gerar a nova escala."} ${coverageMessage}`
+          : json.error || "Nao foi possivel gerar a nova escala."
+      );
     } else {
       setSuccess("Escala anterior removida e nova escala criada com sucesso!");
       await loadSchedules();

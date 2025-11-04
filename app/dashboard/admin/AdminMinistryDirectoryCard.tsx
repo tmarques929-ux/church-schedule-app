@@ -240,7 +240,7 @@ export default function AdminMinistryDirectoryCard() {
                             {resolveDisplayName(member.name, member.username)}
                           </span>
                           <span className="text-xs text-indigo-100/70">
-                            @{member.username ?? "sem-username"} Â· {member.role ?? "MEMBER"}
+                            @{member.username ?? "sem-username"} - {member.role ?? "MEMBER"}
                           </span>
                         </li>
                       ))

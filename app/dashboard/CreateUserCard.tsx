@@ -431,7 +431,7 @@ function toggleLeaderForMinistry(ministryId: string) {
                     <div className="flex flex-col">
                       <span className="text-sm font-semibold text-white">{resolveDisplayName(user)}</span>
                       <span className="text-xs text-indigo-100/70">
-                        @{user.username ?? "sem-username"} · {user.role ?? "MEMBER"}
+                      @{user.username ?? "sem-username"} - {user.role ?? "MEMBER"}
                       </span>
                       <span className="text-xs text-indigo-100/60">
                         Familia: {user.family_name ?? "Sem familia vinculada"}
@@ -458,7 +458,7 @@ function toggleLeaderForMinistry(ministryId: string) {
                   <div className="flex flex-col">
                     <span className="text-sm font-semibold text-white">{resolveDisplayName(member)}</span>
                     <span className="text-xs text-indigo-100/70">
-                      @{member.username ?? "sem-username"} · {member.role ?? "MEMBER"}
+                      @{member.username ?? "sem-username"} - {member.role ?? "MEMBER"}
                     </span>
                     <span className="text-xs text-indigo-100/60">
                       Familia atual: {member.family_name ?? "Sem familia vinculada"}

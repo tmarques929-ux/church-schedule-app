@@ -315,7 +315,7 @@ export default function AdminFamilyLinkCard() {
                         {resolveDisplayName(user.name, user.username)}
                       </span>
                       <span className="block text-xs text-indigo-100/70">
-                        @{user.username ?? "sem-username"} · {user.role ?? "MEMBER"}
+                        @{user.username ?? "sem-username"} - {user.role ?? "MEMBER"}
                       </span>
                       <span className="block text-xs text-indigo-100/60">
                         Familia atual: {user.family_name ?? "Sem familia vinculada"}

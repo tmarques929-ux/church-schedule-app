@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
-import { generateSchedule, IncompleteAvailabilityError, ExistingScheduleError } from '@lib/scheduleGenerator';
+import {
+  generateSchedule,
+  IncompleteAvailabilityError,
+  ExistingScheduleError,
+  CoverageShortfallError
+} from '@lib/scheduleGenerator';
 import { ensureAdmin } from '../../_utils/ensureAdmin';
 
 /**
@@ -68,6 +73,35 @@ export async function POST(request: Request) {
       warnings: result.warnings
     });
   } catch (error: any) {
+    if (error instanceof CoverageShortfallError || error?.code === 'INSUFFICIENT_MINISTRY_COVERAGE') {
+      const requiredPercentage =
+        error instanceof CoverageShortfallError && typeof error.requiredPercentage === 'number'
+          ? error.requiredPercentage
+          : typeof error?.requiredPercentage === 'number'
+          ? error.requiredPercentage
+          : 0.7;
+      const deficits =
+        error instanceof CoverageShortfallError
+          ? error.deficits
+          : Array.isArray(error?.deficits)
+          ? error.deficits
+          : [];
+      return NextResponse.json(
+        {
+          error:
+            'Nao foi possivel gerar a escala. Alguns ministerios ainda nao atingiram a cobertura minima de disponibilidade.',
+          requiredPercentage,
+          deficits: deficits.map((item: any) => ({
+            ministryId: item.ministryId,
+            ministryName: item.ministryName,
+            coverage: item.coverage,
+            availableMembers: item.availableMembers,
+            totalMembers: item.totalMembers
+          }))
+        },
+        { status: 409 }
+      );
+    }
     if (error instanceof ExistingScheduleError || error?.code === 'SCHEDULE_ALREADY_EXISTS') {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }

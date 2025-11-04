@@ -79,37 +79,5 @@ export async function ensureAdmin(): Promise<
     };
   }
 
-  if (serverEnv.ENFORCE_ADMIN_MFA) {
-    const {
-      data: mfaData,
-      error: mfaError
-    } = await supabaseAdmin.auth.admin.mfa.listFactors({ userId: user.id });
-
-    if (mfaError) {
-      console.error("Falha ao verificar fatores MFA do usuario:", mfaError);
-      return {
-        errorResponse: NextResponse.json(
-          { error: "Nao foi possivel validar MFA. Tente novamente ou procure suporte." },
-          { status: 403 }
-        )
-      };
-    }
-
-    const hasVerifiedFactor =
-      (mfaData?.factors ?? []).some((factor) => factor.status === "verified");
-
-    if (!hasVerifiedFactor) {
-      return {
-        errorResponse: NextResponse.json(
-          {
-            error:
-              "MFA obrigatorio para administradores. Ative um autenticador nas configuracoes de conta antes de continuar."
-          },
-          { status: 412 }
-        )
-      };
-    }
-  }
-
   return { user };
 }

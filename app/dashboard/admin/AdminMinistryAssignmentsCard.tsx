@@ -274,7 +274,7 @@ export default function AdminMinistryAssignmentsCard() {
                   >
                     <span className="block text-sm font-semibold">{resolveDisplayName(user.name, user.username)}</span>
                     <span className="block text-xs text-indigo-100/70">
-                      @{user.username ?? "sem-username"} Â· {user.role ?? "MEMBER"}
+                      @{user.username ?? "sem-username"} - {user.role ?? "MEMBER"}
                     </span>
                   </button>
                 );

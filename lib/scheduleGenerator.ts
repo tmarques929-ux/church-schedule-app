@@ -64,6 +64,26 @@ export class ExistingScheduleError extends Error {
   }
 }
 
+export interface MinistryCoverageDeficit {
+  ministryId: string;
+  ministryName: string;
+  coverage: number;
+  availableMembers: number;
+  totalMembers: number;
+}
+
+export class CoverageShortfallError extends Error {
+  public readonly code = 'INSUFFICIENT_MINISTRY_COVERAGE';
+  public readonly requiredPercentage: number;
+  public readonly deficits: MinistryCoverageDeficit[];
+
+  constructor(requiredPercentage: number, deficits: MinistryCoverageDeficit[]) {
+    super('Ministerios abaixo da cobertura minima de disponibilidade.');
+    this.requiredPercentage = requiredPercentage;
+    this.deficits = deficits;
+  }
+}
+
 const BAND_MINISTRY_NAME = 'Bandas';
 const DERIVED_MINISTRY_NAMES = ['multimidia', 'audio', 'iluminacao', 'ordem de culto'];
 const SPECIAL_ELEVE_KEYWORDS = ['eleve', '30 semanas', '30-semanas', '30semana'];
@@ -136,6 +156,7 @@ const AVOID_PENALTY = 220;
 const EXCLUSIVE_BONUS = 45;
 const PLACEHOLDER_PENALTY = 380;
 const CONSECUTIVE_WINDOW_DAYS = 1;
+const MINIMUM_MINISTRY_COVERAGE = 0.7;
 
 export async function generateSchedule(
   month: number,
@@ -234,16 +255,27 @@ export async function generateSchedule(
   }
 
   const membersByMinistry = new Map<string, Set<string>>();
-  (memberMinistries as Array<{ member_id: string; ministry_id: string }> | null | undefined)?.forEach(
-    (record) => {
-      let set = membersByMinistry.get(record.ministry_id);
-      if (!set) {
-        set = new Set<string>();
-        membersByMinistry.set(record.ministry_id, set);
-      }
-      set.add(record.member_id);
+  const ministriesByMember = new Map<string, Set<string>>();
+  (memberMinistries as Array<{ member_id: string; ministry_id: string }> | null | undefined)?.forEach((record) => {
+    let set = membersByMinistry.get(record.ministry_id);
+    if (!set) {
+      set = new Set<string>();
+      membersByMinistry.set(record.ministry_id, set);
     }
-  );
+    set.add(record.member_id);
+
+    let ministriesForMember = ministriesByMember.get(record.member_id);
+    if (!ministriesForMember) {
+      ministriesForMember = new Set<string>();
+      ministriesByMember.set(record.member_id, ministriesForMember);
+    }
+    ministriesForMember.add(record.ministry_id);
+  });
+
+  const memberRolePreferenceList: MemberRolePreference[] =
+    (rolePreferences as MemberRolePreference[] | null | undefined) ?? [];
+  const assignmentConstraintList: AssignmentConstraint[] =
+    (assignmentConstraints as AssignmentConstraint[] | null | undefined) ?? [];
 
   const rolePreferencesByRole = new Map<string, MemberRolePreference[]>();
   memberRolePreferenceList.forEach((preference) => {
@@ -310,10 +342,6 @@ export async function generateSchedule(
     (band) => band.active !== false
   );
   const bandMemberList: BandMember[] = (bandMembers as BandMember[] | null | undefined) ?? [];
-  const memberRolePreferenceList: MemberRolePreference[] =
-    (rolePreferences as MemberRolePreference[] | null | undefined) ?? [];
-  const assignmentConstraintList: AssignmentConstraint[] =
-    (assignmentConstraints as AssignmentConstraint[] | null | undefined) ?? [];
 
   const normalizedBandName = normalizeName(BAND_MINISTRY_NAME);
   const bandMinistry =
@@ -322,6 +350,75 @@ export async function generateSchedule(
     DERIVED_MINISTRY_NAMES.includes(normalizeName(ministry.name))
   );
   const normalizedTargetMinistry = options.ministry ? normalizeName(options.ministry) : null;
+
+  const relevantMinistries = [
+    ...(bandMinistry ? [bandMinistry] : []),
+    ...derivedMinistries
+  ];
+  const ministriesToCheck = normalizedTargetMinistry
+    ? relevantMinistries.filter(
+        (ministry) => normalizeName(ministry.name) === normalizedTargetMinistry
+      )
+    : relevantMinistries;
+
+  if ((celebrations?.length ?? 0) > 0 && ministriesToCheck.length > 0) {
+    const celebrationIdsInScope = new Set(
+      (celebrations ?? []).map((celebration: any) => celebration.id as string)
+    );
+    const relevantMinistryIds = new Set(
+      ministriesToCheck.map((ministry) => ministry.id as string)
+    );
+    const availableMembersByMinistry = new Map<string, Set<string>>();
+
+    (availabilities ?? []).forEach((availability: any) => {
+      const celebrationId = availability.celebration_id as string | undefined;
+      const memberId = availability.member_id as string | undefined;
+      if (!celebrationId || !memberId) {
+        return;
+      }
+      if (!celebrationIdsInScope.has(celebrationId) || availability.available !== true) {
+        return;
+      }
+      const ministriesForMember = ministriesByMember.get(memberId);
+      if (!ministriesForMember) {
+        return;
+      }
+      ministriesForMember.forEach((ministryId) => {
+        if (!relevantMinistryIds.has(ministryId)) {
+          return;
+        }
+        let set = availableMembersByMinistry.get(ministryId);
+        if (!set) {
+          set = new Set<string>();
+          availableMembersByMinistry.set(ministryId, set);
+        }
+        set.add(memberId);
+      });
+    });
+
+    const coverageDeficits: MinistryCoverageDeficit[] = ministriesToCheck
+      .map((ministry) => {
+        const totalMembers = membersByMinistry.get(ministry.id)?.size ?? 0;
+        const availableMembers = availableMembersByMinistry.get(ministry.id)?.size ?? 0;
+        const coverage = totalMembers === 0 ? 0 : availableMembers / totalMembers;
+
+        return {
+          ministryId: ministry.id as string,
+          ministryName: ministry.name ?? 'Ministerio',
+          coverage,
+          availableMembers,
+          totalMembers
+        };
+      })
+      .filter(
+        (item) =>
+          item.totalMembers === 0 || item.coverage < MINIMUM_MINISTRY_COVERAGE
+      );
+
+    if (coverageDeficits.length > 0) {
+      throw new CoverageShortfallError(MINIMUM_MINISTRY_COVERAGE, coverageDeficits);
+    }
+  }
 
   const sortedBands = [...bandList].sort((a, b) =>
     a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })

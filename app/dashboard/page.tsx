@@ -4,7 +4,6 @@ import Link from "next/link";
 import { createServerComponentSupabaseClient } from "@supabase/auth-helpers-nextjs";
 import CreateUserCard from "./CreateUserCard";
 import ChangePasswordCard from "./ChangePasswordCard";
-import MfaEnrollmentCard from "./MfaEnrollmentCard";
 
 type Profile = {
   name: string | null;
@@ -222,7 +221,6 @@ export default async function DashboardPage() {
 
         <div className="grid gap-6 md:grid-cols-2">
           <ChangePasswordCard />
-          <MfaEnrollmentCard />
           <CreateUserCard canManageUsers={isAdmin} />
         </div>
       </div>
