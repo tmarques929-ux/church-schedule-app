@@ -35,6 +35,26 @@ STABLE AS $$
   );
 $$;
 
+CREATE OR REPLACE FUNCTION public.is_leader(_ministry_id uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+STABLE AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.profiles p
+    LEFT JOIN public.member_ministries mm
+      ON mm.member_id = p.user_id
+     AND mm.ministry_id = _ministry_id
+     AND mm.is_leader = true
+    WHERE p.user_id = auth.uid()
+      AND (
+        p.role = 'ADMIN'
+        OR (p.role = 'LEADER' AND mm.member_id IS NOT NULL)
+      )
+  );
+$$;
+
 -- -----------------------------------------------------------------
 -- Habilitar RLS nas tabelas e criar policies
 -- -----------------------------------------------------------------
@@ -120,6 +140,16 @@ ALTER TABLE public.schedule_runs ENABLE ROW LEVEL SECURITY;
 -- Leitura: admin vê tudo; membro vê somente escalas publicadas
 CREATE POLICY schedule_runs_select_admin ON public.schedule_runs FOR SELECT USING (public.is_admin());
 CREATE POLICY schedule_runs_select_member ON public.schedule_runs FOR SELECT USING (status = 'published');
+CREATE POLICY schedule_runs_select_leader ON public.schedule_runs
+  FOR SELECT
+  USING (
+    public.is_admin() OR EXISTS (
+      SELECT 1
+      FROM public.assignments a
+      WHERE a.schedule_run_id = id
+        AND public.is_leader(a.ministry_id)
+    )
+  );
 
 -- Escrita: admin apenas
 CREATE POLICY schedule_runs_admin_write ON public.schedule_runs FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
@@ -134,6 +164,55 @@ CREATE POLICY assignments_select_member ON public.assignments FOR SELECT USING (
     SELECT 1 FROM public.schedule_runs sr WHERE sr.id = schedule_run_id AND sr.status = 'published'
   )
 );
+CREATE POLICY assignments_select_leader ON public.assignments
+  FOR SELECT
+  USING (public.is_admin() OR public.is_leader(ministry_id));
 
 -- Escrita: somente admin
 CREATE POLICY assignments_admin_write ON public.assignments FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- MEMBER_ROLE_PREFERENCES
+ALTER TABLE public.member_role_preferences ENABLE ROW LEVEL SECURITY;
+CREATE POLICY member_role_preferences_select_admin ON public.member_role_preferences FOR SELECT USING (public.is_admin());
+CREATE POLICY member_role_preferences_select_self ON public.member_role_preferences FOR SELECT USING (member_id = auth.uid());
+CREATE POLICY member_role_preferences_insert_self ON public.member_role_preferences
+  FOR INSERT WITH CHECK ((member_id = auth.uid()) OR public.is_admin());
+CREATE POLICY member_role_preferences_update_self ON public.member_role_preferences
+  FOR UPDATE USING ((member_id = auth.uid()) OR public.is_admin()) WITH CHECK ((member_id = auth.uid()) OR public.is_admin());
+CREATE POLICY member_role_preferences_delete_admin ON public.member_role_preferences FOR DELETE USING (public.is_admin());
+
+-- ASSIGNMENT_CONSTRAINTS
+ALTER TABLE public.assignment_constraints ENABLE ROW LEVEL SECURITY;
+CREATE POLICY assignment_constraints_select_admin ON public.assignment_constraints FOR SELECT USING (public.is_admin());
+CREATE POLICY assignment_constraints_admin_write ON public.assignment_constraints FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- SCHEDULE_RUN_VERSIONS
+ALTER TABLE public.schedule_run_versions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY schedule_run_versions_select_admin ON public.schedule_run_versions FOR SELECT USING (public.is_admin());
+CREATE POLICY schedule_run_versions_admin_write ON public.schedule_run_versions FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- SCHEDULE_FEEDBACK
+ALTER TABLE public.schedule_feedback ENABLE ROW LEVEL SECURITY;
+CREATE POLICY schedule_feedback_select_admin ON public.schedule_feedback FOR SELECT USING (public.is_admin());
+CREATE POLICY schedule_feedback_select_self ON public.schedule_feedback FOR SELECT USING (submitted_by = auth.uid());
+CREATE POLICY schedule_feedback_insert_self ON public.schedule_feedback
+  FOR INSERT WITH CHECK ((submitted_by = auth.uid()) OR public.is_admin());
+CREATE POLICY schedule_feedback_admin_update ON public.schedule_feedback
+  FOR UPDATE USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY schedule_feedback_delete_admin ON public.schedule_feedback FOR DELETE USING (public.is_admin());
+
+-- NOTIFICATION_SUBSCRIPTIONS
+ALTER TABLE public.notification_subscriptions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY notification_subscriptions_select_admin ON public.notification_subscriptions FOR SELECT USING (public.is_admin());
+CREATE POLICY notification_subscriptions_select_self ON public.notification_subscriptions FOR SELECT USING (member_id = auth.uid());
+CREATE POLICY notification_subscriptions_insert_self ON public.notification_subscriptions
+  FOR INSERT WITH CHECK ((member_id = auth.uid()) OR public.is_admin());
+CREATE POLICY notification_subscriptions_update_self ON public.notification_subscriptions
+  FOR UPDATE USING ((member_id = auth.uid()) OR public.is_admin()) WITH CHECK ((member_id = auth.uid()) OR public.is_admin());
+CREATE POLICY notification_subscriptions_delete_self ON public.notification_subscriptions
+  FOR DELETE USING ((member_id = auth.uid()) OR public.is_admin());
+
+-- MEMBER_ASSIGNMENT_STATS
+ALTER TABLE public.member_assignment_stats ENABLE ROW LEVEL SECURITY;
+CREATE POLICY member_assignment_stats_select_admin ON public.member_assignment_stats FOR SELECT USING (public.is_admin());
+CREATE POLICY member_assignment_stats_select_self ON public.member_assignment_stats FOR SELECT USING (member_id = auth.uid());

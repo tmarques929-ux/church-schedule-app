@@ -89,6 +89,22 @@ Todas as tabelas sensíveis têm RLS habilitado. As policies definem que:
 
 Consulte `sql/02_policies.sql` para o texto completo das policies.
 
+## Segurança avançada
+
+1. **MFA obrigatório para admins**  
+   - Habilite MFA no Supabase em *Authentication ▸ Settings ▸ Multi-factor authentication* ativando TOTP para usuários `authenticated`.  
+   - No painel do app, o card “Autenticação multifator” permite inscrever autenticadores. Administradores sem fator verificado recebem resposta `412` nas rotas protegidas.  
+   - A variável `ENFORCE_ADMIN_MFA` (default `true`) pode ser ajustada temporariamente durante migrações, mas volte a ativá-la após concluir a configuração dos líderes.
+
+2. **JWT com assinatura assimétrica (RS256)**  
+   - Gere um par de chaves RSA (`openssl genrsa -out supabase-jwt-private.pem 4096` e `openssl rsa -in supabase-jwt-private.pem -pubout -out supabase-jwt-public.pem`).  
+   - Configure o projeto Supabase com `JWT_SECRET` (chave privada) e `JWT_ALGORITHM=RS256` via CLI ou dashboard.  
+   - Defina `SUPABASE_JWT_PUBLIC_KEY` no `.env` do app. O backend registra avisos se detectar algoritmo RS* sem chave pública — útil para validar tokens nos edge handlers ou gateway.
+
+3. **Validação estruturada de ambiente**  
+   - O módulo `lib/env.ts` usa Zod para checar URL, chaves e domínios em tempo de boot, emitindo mensagens claras quando algo estiver ausente.  
+   - Novas variáveis (`SUPABASE_JWT_SIGNING_ALG`, `ENFORCE_ADMIN_MFA`, etc.) possuem defaults seguros, facilitando auditorias e deploys automatizados.
+
 ## API e OpenAPI
 
 A API foi documentada em OpenAPI (YAML) no arquivo `openapi.yaml`. O backend expõe os seguintes endpoints principais:

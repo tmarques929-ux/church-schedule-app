@@ -1,6 +1,7 @@
 ﻿"use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { createMinistryAction } from "./actions";
 
 type MinistryEntry = {
   id: string;
@@ -30,7 +31,7 @@ export default function AdminMinistryDirectoryCard() {
   const [active, setActive] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
   const [formMessage, setFormMessage] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   const resolveDisplayName = useCallback((name: string | null, username: string | null) => {
     const normalizedUsername = username?.trim().toLowerCase();
@@ -65,44 +66,43 @@ export default function AdminMinistryDirectoryCard() {
   const totalActive = useMemo(() => ministries.filter((item) => item.active).length, [ministries]);
   const totalInactive = useMemo(() => ministries.filter((item) => !item.active).length, [ministries]);
 
-  async function handleCreate(event: FormEvent) {
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(null);
     setFormMessage(null);
 
     const trimmedName = name.trim();
+    const trimmedDescription = description.trim();
+    const currentActive = active;
+
     if (!trimmedName) {
       setFormError("Informe o nome do ministerio.");
       return;
     }
 
-    setCreating(true);
-    try {
-      const response = await fetch("/api/ministries", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+    startTransition(async () => {
+      try {
+        const result = await createMinistryAction({
           name: trimmedName,
-          description: description.trim(),
-          active
-        })
-      });
-      const json = await response.json();
-      if (!response.ok) {
-        throw new Error(json.error || "Nao foi possivel criar o ministerio.");
+          description: trimmedDescription,
+          active: currentActive
+        });
+
+        if (!result.success) {
+          setFormError(result.error ?? "Nao foi possivel criar o ministerio.");
+          return;
+        }
+
+        setFormMessage("Ministerio cadastrado com sucesso.");
+        setName("");
+        setDescription("");
+        setActive(true);
+
+        await fetchMinistries();
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : "Erro inesperado ao cadastrar ministerio.");
       }
-
-      setFormMessage("Ministerio cadastrado com sucesso.");
-      setName("");
-      setDescription("");
-      setActive(true);
-
-      await fetchMinistries();
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Erro inesperado ao cadastrar ministerio.");
-    } finally {
-      setCreating(false);
-    }
+    });
   }
 
   return (
@@ -151,10 +151,10 @@ export default function AdminMinistryDirectoryCard() {
 
         <button
           type="submit"
-          disabled={creating}
+          disabled={isPending}
           className="inline-flex items-center gap-2 rounded-full border border-indigo-300/40 bg-indigo-500/80 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-900/30 transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/10 disabled:text-indigo-100/60"
         >
-          {creating ? "Salvando..." : "Cadastrar ministerio"}
+          {isPending ? "Salvando..." : "Cadastrar ministerio"}
         </button>
 
         {formError && (

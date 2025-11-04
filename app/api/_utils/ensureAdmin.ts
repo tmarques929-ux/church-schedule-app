@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerSupabaseClient } from "@supabase/auth-helpers-nextjs";
 import { cookies, headers } from "next/headers";
 import { supabaseAdmin } from "@lib/supabaseServer";
+import { serverEnv } from "@lib/env";
 import type { User } from "@supabase/supabase-js";
 
 type EnsureErrorResponse = { errorResponse: NextResponse };
@@ -15,7 +16,12 @@ type EnsureAuthenticatedSuccess = { user: User };
 export async function ensureAuthenticated(): Promise<
   EnsureAuthenticatedSuccess | EnsureErrorResponse
 > {
-  const supabase = createRouteHandlerSupabaseClient({ cookies, headers });
+  const cookieStore = await cookies();
+  const headerList = await headers();
+  const supabase = createRouteHandlerSupabaseClient({
+    cookies: () => cookieStore,
+    headers: () => headerList
+  });
 
   const {
     data: { user },
@@ -71,6 +77,38 @@ export async function ensureAdmin(): Promise<
         { status: 403 }
       ),
     };
+  }
+
+  if (serverEnv.ENFORCE_ADMIN_MFA) {
+    const {
+      data: mfaData,
+      error: mfaError
+    } = await supabaseAdmin.auth.admin.mfa.listFactors({ userId: user.id });
+
+    if (mfaError) {
+      console.error("Falha ao verificar fatores MFA do usuario:", mfaError);
+      return {
+        errorResponse: NextResponse.json(
+          { error: "Nao foi possivel validar MFA. Tente novamente ou procure suporte." },
+          { status: 403 }
+        )
+      };
+    }
+
+    const hasVerifiedFactor =
+      (mfaData?.factors ?? []).some((factor) => factor.status === "verified");
+
+    if (!hasVerifiedFactor) {
+      return {
+        errorResponse: NextResponse.json(
+          {
+            error:
+              "MFA obrigatorio para administradores. Ative um autenticador nas configuracoes de conta antes de continuar."
+          },
+          { status: 412 }
+        )
+      };
+    }
   }
 
   return { user };

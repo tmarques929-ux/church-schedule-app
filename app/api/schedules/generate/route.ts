@@ -24,10 +24,25 @@ export async function POST(request: Request) {
     ministry: string;
     preserveLocked: boolean;
     force: boolean;
+    allowPlaceholders: boolean;
+    forceRegeneration: boolean;
+    fallbackStrategy: 'strict' | 'placeholder' | 'notify-only';
   }>;
 
   const forceQuery = url.searchParams.get('force');
-  const allowIncomplete = optionsBody.force === true || forceQuery === '1' || forceQuery === 'true';
+  const allowIncomplete =
+    optionsBody.allowPlaceholders === true ||
+    optionsBody.force === true ||
+    forceQuery === '1' ||
+    forceQuery === 'true';
+  const fallbackStrategyQuery = url.searchParams.get('fallback');
+  const fallbackStrategyFromQuery =
+    fallbackStrategyQuery === 'strict' || fallbackStrategyQuery === 'notify-only'
+      ? fallbackStrategyQuery
+      : fallbackStrategyQuery === 'placeholder'
+      ? 'placeholder'
+      : undefined;
+  const fallbackStrategy = optionsBody.fallbackStrategy ?? fallbackStrategyFromQuery;
 
   const adminCheck = await ensureAdmin();
   if ('errorResponse' in adminCheck) {
@@ -39,7 +54,13 @@ export async function POST(request: Request) {
       ministry: optionsBody.ministry,
       preserveLocked: optionsBody.preserveLocked,
       createdBy: adminCheck.user.id,
-      allowIncomplete
+      allowIncomplete,
+      fallbackStrategy,
+      forceRegeneration:
+        optionsBody.forceRegeneration === true ||
+        optionsBody.force === true ||
+        forceQuery === '1' ||
+        forceQuery === 'true'
     });
     return NextResponse.json({
       scheduleRunId: result.scheduleRunId,

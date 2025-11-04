@@ -23,7 +23,12 @@ type MinistryAssignment = {
 };
 
 export default async function MyMinistriesPage() {
-  const supabase = createServerComponentSupabaseClient({ cookies, headers });
+  const cookieStore = await cookies();
+  const headerList = await headers();
+  const supabase = createServerComponentSupabaseClient({
+    cookies: () => cookieStore,
+    headers: () => headerList
+  });
   const {
     data: { user }
   } = await supabase.auth.getUser();

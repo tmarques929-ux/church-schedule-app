@@ -1,20 +1,43 @@
 import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
-
-if (!supabaseUrl || !serviceRoleKey) {
-  throw new Error('Supabase URL e service role key devem estar configurados');
-}
+import { publicEnv, serverEnv } from './env';
 
 /**
- * InstÃ¢ncia de client para uso no lado do servidor. Utiliza a chave de
- * service role do Supabase para contornar RLS em operaÃ§Ãµes que
- * demandam permissÃµes elevadas (por exemplo, geraÃ§Ã£o de escala). **NÃ£o
- * exponha esta chave ao cliente.**
+ * Cliente privilegiado do Supabase (service role) utilizado apenas em rotas e
+ * funcoes server-side. Mantem o algoritmo de assinatura JWT resolvido para
+ * validar tokens emitidos pela instancia (assimetrico ou nao).
  */
-export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-  auth: {
-    persistSession: false
+export const supabaseAdmin = createClient(
+  publicEnv.NEXT_PUBLIC_SUPABASE_URL,
+  serverEnv.SUPABASE_SERVICE_ROLE_KEY,
+  {
+    auth: {
+      persistSession: false
+    }
   }
-});
+);
+
+export const resolvedSigningConfig = {
+  algorithm: serverEnv.SUPABASE_JWT_SIGNING_ALG,
+  publicKey: serverEnv.SUPABASE_JWT_PUBLIC_KEY,
+  secret: serverEnv.SUPABASE_JWT_SECRET
+};
+
+export const isAsymmetricJwt =
+  resolvedSigningConfig.algorithm.startsWith('RS') &&
+  Boolean(resolvedSigningConfig.publicKey);
+
+export const isSymmetricJwt =
+  resolvedSigningConfig.algorithm.startsWith('HS') &&
+  Boolean(resolvedSigningConfig.secret);
+
+if (resolvedSigningConfig.algorithm.startsWith('RS') && !resolvedSigningConfig.publicKey) {
+  console.warn(
+    '[security] JWT configurado para modo assincrono (RS*) porém SUPABASE_JWT_PUBLIC_KEY não está definido. Configure a chave pública para validação externa.'
+  );
+}
+
+if (resolvedSigningConfig.algorithm.startsWith('HS') && !resolvedSigningConfig.secret) {
+  console.warn(
+    '[security] JWT configurado para modo simétrico (HS*) porém SUPABASE_JWT_SECRET não está definido. Tokens não poderão ser verificados localmente.'
+  );
+}

@@ -73,6 +73,12 @@ export async function GET(request: Request, { params }: Params) {
     const ministry = ministries?.find((item) => item.id === assignment.ministry_id);
     const role = roles?.find((item) => item.id === assignment.role_id);
     const member = profiles?.find((item) => item.user_id === assignment.member_id);
+    const isPlaceholder = assignment.is_placeholder === true;
+    const placeholderReason = assignment.placeholder_reason ?? null;
+    const memberName = member?.name ?? null;
+    const memberDisplay = isPlaceholder
+      ? `PENDENTE${placeholderReason ? ` (${placeholderReason})` : ''}`
+      : memberName ?? 'Sem membro alocado';
     return {
       assignmentId: assignment.id,
       celebrationId: celebration?.id ?? assignment.celebration_id,
@@ -83,8 +89,11 @@ export async function GET(request: Request, { params }: Params) {
       roleId: role?.id ?? assignment.role_id,
       role: role?.name ?? null,
       memberId: member?.user_id ?? assignment.member_id,
-      member: member?.name ?? null,
-      locked: assignment.locked ?? false
+      memberName,
+      member: memberDisplay,
+      locked: assignment.locked ?? false,
+      isPlaceholder,
+      placeholderReason
     };
   });
 
@@ -102,7 +111,7 @@ export async function GET(request: Request, { params }: Params) {
   if (format === 'csv') {
     const csv = stringify(filteredRows, {
       header: true,
-      columns: ['date', 'ministry', 'role', 'member']
+      columns: ['date', 'ministry', 'role', 'member', 'placeholderReason']
     });
     return new Response(csv, {
       headers: {
@@ -147,7 +156,12 @@ export async function GET(request: Request, { params }: Params) {
           {
             id: string;
             name: string;
-            assignments: { role: string; member: string }[];
+            assignments: {
+              role: string;
+              member: string;
+              isPlaceholder: boolean;
+              placeholderReason: string | null;
+            }[];
           }
         >;
       }
@@ -191,7 +205,9 @@ export async function GET(request: Request, { params }: Params) {
 
       ministryGroup.assignments.push({
         role: row.role ?? 'Funcao nao definida',
-        member: row.member ?? 'Sem membro alocado'
+        member: row.member ?? 'Sem membro alocado',
+        isPlaceholder: row.isPlaceholder ?? false,
+        placeholderReason: row.placeholderReason ?? null
       });
     });
 
@@ -283,7 +299,10 @@ export async function GET(request: Request, { params }: Params) {
 
         assignments.forEach((assignment) => {
           ensureSpace(1);
-          page.drawText(`- ${assignment.role}: ${assignment.member}`, {
+          const memberLabel = assignment.isPlaceholder
+            ? `PENDENTE${assignment.placeholderReason ? ` (${assignment.placeholderReason})` : ''}`
+            : assignment.member;
+          page.drawText(`- ${assignment.role}: ${memberLabel}`, {
             x: marginX + 12,
             y,
             size: 10,

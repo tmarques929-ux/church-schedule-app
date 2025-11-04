@@ -1,0 +1,41 @@
+
+      return NextResponse.json({ success: true, userId: targetUserId });
+    }
+
+      // ------------------------------------------------------
+      case 'updateRole': {
+        const { userId, role } = body;
+        const normalizedUserId = typeof userId === 'string' ? userId.trim() : '';
+        const normalizedRole = typeof role === 'string' ? role.trim().toUpperCase() : '';
+
+        if (!normalizedUserId || !UUID_REGEX.test(normalizedUserId)) {
+          return NextResponse.json({ error: 'Informe um usuario valido.' }, { status: 400 });
+        }
+
+        if (!['ADMIN', 'MEMBER'].includes(normalizedRole)) {
+          return NextResponse.json(
+            { error: 'Informe um papel valido (ADMIN ou MEMBER).' },
+            { status: 400 }
+          );
+        }
+
+        const { data: profile, error: profileError } = await supabaseAdmin
+          .from('profiles')
+          .select('user_id, role')
+          .eq('user_id', normalizedUserId)
+          .maybeSingle();
+
+        if (profileError) {
+          return NextResponse.json({ error: profileError.message }, { status: 400 });
+        }
+
+        if (!profile) {
+          return NextResponse.json({ error: 'Usuario nao encontrado.' }, { status: 404 });
+        }
+
+        if (profile.role === normalizedRole) {
+          return NextResponse.json({ success: true, role: normalizedRole });
+        }
+
+        const { error: updateError } = await supabaseAdmin
+          .from('profiles')

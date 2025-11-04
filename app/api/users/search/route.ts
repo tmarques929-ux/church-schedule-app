@@ -4,7 +4,12 @@ import { createRouteHandlerSupabaseClient } from '@supabase/auth-helpers-nextjs'
 import { supabaseAdmin } from '@lib/supabaseServer';
 
 async function ensureAdmin() {
-  const supabase = createRouteHandlerSupabaseClient({ cookies, headers });
+  const cookieStore = await cookies();
+  const headerList = await headers();
+  const supabase = createRouteHandlerSupabaseClient({
+    cookies: () => cookieStore,
+    headers: () => headerList
+  });
   const {
     data: { user }
   } = await supabase.auth.getUser();

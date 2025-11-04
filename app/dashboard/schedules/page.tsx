@@ -40,6 +40,21 @@ export default function SchedulesPage() {
   >({});
   const [loadingCelebrations, setLoadingCelebrations] = useState<Record<string, boolean>>({});
   const [celebrationsError, setCelebrationsError] = useState<Record<string, string | null>>({});
+  const [feedbackExpandedId, setFeedbackExpandedId] = useState<string | null>(null);
+  const [feedbackBySchedule, setFeedbackBySchedule] = useState<Record<string, any[]>>({});
+  const [feedbackLoading, setFeedbackLoading] = useState<Record<string, boolean>>({});
+  const [feedbackError, setFeedbackError] = useState<Record<string, string | null>>({});
+  const [feedbackDraft, setFeedbackDraft] = useState<
+    Record<
+      string,
+      {
+        comment: string;
+        category: 'availability' | 'competency' | 'preference' | 'fairness' | 'other';
+        severity: 'low' | 'medium' | 'high' | 'critical';
+      }
+    >
+  >({});
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState<Record<string, boolean>>({});
 
   const loadSchedules = useCallback(async () => {
     const { data, error } = await supabase
@@ -99,10 +114,10 @@ export default function SchedulesPage() {
     setLoadingGenerate(true);
     setError(null);
     setSuccess(null);
-    const response = await fetch(`/api/schedules/generate?month=${month}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({})
+  const response = await fetch(`/api/schedules/generate?month=${month}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ allowPlaceholders: true, fallbackStrategy: "placeholder" })
     });
     const json = await response.json();
     if (!response.ok) {
@@ -133,10 +148,10 @@ export default function SchedulesPage() {
       setLoadingRegenerate(false);
       return;
     }
-    const response = await fetch(`/api/schedules/generate?month=${month}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({})
+  const response = await fetch(`/api/schedules/generate?month=${month}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ allowPlaceholders: true, fallbackStrategy: "placeholder" })
     });
     const json = await response.json();
     if (!response.ok) {
@@ -160,12 +175,40 @@ export default function SchedulesPage() {
     const json = await response.json();
     if (!response.ok) {
       setError(json.error || "Nao foi possivel publicar a escala.");
-      } else {
-        setSuccess("Escala publicada! As equipes ja podem consultar no painel.");
-        await loadSchedules();
-      }
       setLoadingPublish(null);
+      return;
     }
+
+    const notificationsInfo =
+      typeof json.notificationsDispatched === 'number'
+        ? ` Notificacoes enviadas: ${json.notificationsDispatched}.`
+        : '';
+    setSuccess(`Escala publicada! As equipes ja podem consultar no painel.${notificationsInfo}`);
+
+    if (json?.calendar?.content) {
+      try {
+        const binary = atob(json.calendar.content as string);
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) {
+          bytes[index] = binary.charCodeAt(index);
+        }
+        const blob = new Blob([bytes], { type: 'text/calendar' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = (json.calendar.filename as string) || `escala-${id}.ics`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+      } catch (icsError) {
+        console.error('Falha ao preparar arquivo ICS', icsError);
+      }
+    }
+
+    await loadSchedules();
+    setLoadingPublish(null);
+  }
 
     async function toggleCelebrations(scheduleId: string) {
       if (expandedScheduleId === scheduleId) {
@@ -268,6 +311,85 @@ export default function SchedulesPage() {
         }));
       }
     }
+
+  async function toggleFeedback(scheduleId: string) {
+    if (feedbackExpandedId === scheduleId) {
+      setFeedbackExpandedId(null);
+      return;
+    }
+    setFeedbackExpandedId(scheduleId);
+    if (feedbackBySchedule[scheduleId] !== undefined || feedbackLoading[scheduleId]) {
+      return;
+    }
+    setFeedbackLoading((prev) => ({ ...prev, [scheduleId]: true }));
+    setFeedbackError((prev) => ({ ...prev, [scheduleId]: null }));
+    try {
+      const response = await fetch(`/api/schedules/feedback?scheduleRunId=${scheduleId}`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Nao foi possivel carregar o feedback.');
+      }
+      setFeedbackBySchedule((prev) => ({ ...prev, [scheduleId]: payload.feedback ?? [] }));
+      setFeedbackDraft((prev) => ({
+        ...prev,
+        [scheduleId]:
+          prev[scheduleId] ?? {
+            comment: '',
+            category: 'other',
+            severity: 'medium'
+          }
+      }));
+    } catch (caught) {
+      const message =
+        caught instanceof Error ? caught.message : 'Erro inesperado ao carregar feedback.';
+      setFeedbackError((prev) => ({ ...prev, [scheduleId]: message }));
+    } finally {
+      setFeedbackLoading((prev) => ({ ...prev, [scheduleId]: false }));
+    }
+  }
+
+  async function submitFeedback(scheduleId: string) {
+    const draft = feedbackDraft[scheduleId];
+    if (!draft || !draft.comment.trim()) {
+      setFeedbackError((prev) => ({
+        ...prev,
+        [scheduleId]: 'Informe um comentario antes de enviar.'
+      }));
+      return;
+    }
+    setFeedbackSubmitting((prev) => ({ ...prev, [scheduleId]: true }));
+    setFeedbackError((prev) => ({ ...prev, [scheduleId]: null }));
+    try {
+      const response = await fetch('/api/schedules/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scheduleRunId: scheduleId,
+          comment: draft.comment,
+          category: draft.category,
+          severity: draft.severity
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Nao foi possivel registrar o feedback.');
+      }
+      setFeedbackBySchedule((prev) => ({
+        ...prev,
+        [scheduleId]: [payload.feedback, ...(prev[scheduleId] ?? [])]
+      }));
+      setFeedbackDraft((prev) => ({
+        ...prev,
+        [scheduleId]: { ...draft, comment: '' }
+      }));
+    } catch (caught) {
+      const message =
+        caught instanceof Error ? caught.message : 'Erro inesperado ao salvar feedback.';
+      setFeedbackError((prev) => ({ ...prev, [scheduleId]: message }));
+    } finally {
+      setFeedbackSubmitting((prev) => ({ ...prev, [scheduleId]: false }));
+    }
+  }
 
     return (
       <div className="min-h-screen bg-slate-950 bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 text-slate-100">
@@ -384,6 +506,13 @@ export default function SchedulesPage() {
                         const statusStyle =
                           statusStyles[schedule.status] ??
                           'bg-white/10 text-slate-100 border-white/20';
+                        const feedbackItems = feedbackBySchedule[schedule.id] ?? [];
+                        const draft =
+                          feedbackDraft[schedule.id] ?? {
+                            comment: '',
+                            category: 'other' as const,
+                            severity: 'medium' as const
+                          };
                         return (
                           <article
                             key={schedule.id}
@@ -444,6 +573,15 @@ export default function SchedulesPage() {
                                   ? "Ocultar celebracoes"
                                   : "PDF por celebracao"}
                               </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleFeedback(schedule.id)}
+                                className="inline-flex items-center gap-2 rounded-full border border-emerald-300/40 bg-emerald-500/30 px-4 py-2 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-500/50"
+                              >
+                                {feedbackExpandedId === schedule.id
+                                  ? 'Ocultar feedback'
+                                  : 'Feedback dos lideres'}
+                              </button>
                             </footer>
                             {expandedScheduleId === schedule.id && (
                               <div className="mt-3 w-full rounded-2xl border border-indigo-300/30 bg-indigo-500/10 p-4 text-xs text-sky-100/80 sm:text-sm">
@@ -473,6 +611,130 @@ export default function SchedulesPage() {
                                   </div>
                                 ) : (
                                   <p>Nenhuma celebracao encontrada para esta escala.</p>
+                                )}
+                              </div>
+                            )}
+                            {feedbackExpandedId === schedule.id && (
+                              <div className="mt-3 w-full rounded-2xl border border-emerald-300/30 bg-emerald-500/10 p-4 text-xs text-emerald-100/80 sm:text-sm">
+                                {feedbackLoading[schedule.id] ? (
+                                  <p>Carregando feedback...</p>
+                                ) : feedbackError[schedule.id] ? (
+                                  <p className="text-rose-200">{feedbackError[schedule.id]}</p>
+                                ) : (
+                                  <>
+                                    <div className="flex flex-col gap-3">
+                                      {feedbackItems.length > 0 ? (
+                                        feedbackItems.map((item: any) => (
+                                          <div
+                                            key={item.id}
+                                            className="rounded-xl border border-emerald-300/30 bg-emerald-500/20 px-4 py-3"
+                                          >
+                                            <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] uppercase tracking-wide text-emerald-100/70">
+                                              <span>{(item.category ?? 'other').toUpperCase()}</span>
+                                              <span>{(item.severity ?? 'medium').toUpperCase()}</span>
+                                            </div>
+                                            <p className="text-sm text-white">{item.comment}</p>
+                                            <span className="text-[10px] text-emerald-100/60">
+                                              Registrado em{' '}
+                                              {item.created_at
+                                                ? new Date(item.created_at).toLocaleString('pt-BR', {
+                                                    dateStyle: 'short',
+                                                    timeStyle: 'short'
+                                                  })
+                                                : 'data desconhecida'}
+                                            </span>
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <p>Nenhum feedback registrado ainda.</p>
+                                      )}
+                                    </div>
+                                    <form
+                                      className="mt-4 flex flex-col gap-3"
+                                      onSubmit={(event) => {
+                                        event.preventDefault();
+                                        submitFeedback(schedule.id);
+                                      }}
+                                    >
+                                      <div className="grid gap-3 sm:grid-cols-2">
+                                        <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide">
+                                          Categoria
+                                          <select
+                                            value={draft.category}
+                                            onChange={(event) =>
+                                              setFeedbackDraft((prev) => ({
+                                                ...prev,
+                                                [schedule.id]: {
+                                                  ...(prev[schedule.id] ?? draft),
+                                                  comment: prev[schedule.id]?.comment ?? draft.comment,
+                                                  category: event.target.value as typeof draft.category
+                                                }
+                                              }))
+                                            }
+                                            className="rounded-lg border border-emerald-300/30 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-emerald-300/60 focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+                                          >
+                                            <option value="availability">Disponibilidade</option>
+                                            <option value="competency">Competencia</option>
+                                            <option value="preference">Preferencia</option>
+                                            <option value="fairness">Equidade</option>
+                                            <option value="other">Outro</option>
+                                          </select>
+                                        </label>
+                                        <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide">
+                                          Severidade
+                                          <select
+                                            value={draft.severity}
+                                            onChange={(event) =>
+                                              setFeedbackDraft((prev) => ({
+                                                ...prev,
+                                                [schedule.id]: {
+                                                  ...(prev[schedule.id] ?? draft),
+                                                  comment: prev[schedule.id]?.comment ?? draft.comment,
+                                                  severity: event.target.value as typeof draft.severity
+                                                }
+                                              }))
+                                            }
+                                            className="rounded-lg border border-emerald-300/30 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-emerald-300/60 focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+                                          >
+                                            <option value="low">Baixa</option>
+                                            <option value="medium">Media</option>
+                                            <option value="high">Alta</option>
+                                            <option value="critical">Critica</option>
+                                          </select>
+                                        </label>
+                                      </div>
+                                      <label className="flex flex-col gap-1 text-[11px] uppercase tracking-wide">
+                                        Comentario
+                                        <textarea
+                                          value={draft.comment}
+                                          onChange={(event) =>
+                                            setFeedbackDraft((prev) => ({
+                                              ...prev,
+                                              [schedule.id]: {
+                                                ...(prev[schedule.id] ?? draft),
+                                                comment: event.target.value
+                                              }
+                                            }))
+                                          }
+                                          rows={3}
+                                          placeholder="Descreva o ajuste desejado ou o problema encontrado."
+                                          className="min-h-[90px] rounded-lg border border-emerald-300/30 bg-slate-900/60 px-3 py-2 text-sm text-white focus:border-emerald-300/60 focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+                                        />
+                                      </label>
+                                      <div className="flex items-center gap-3">
+                                        <button
+                                          type="submit"
+                                          disabled={feedbackSubmitting[schedule.id]}
+                                          className="inline-flex items-center gap-2 rounded-full border border-emerald-300/40 bg-emerald-500/70 px-4 py-2 text-sm font-semibold text-white shadow shadow-emerald-900/30 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/10 disabled:text-emerald-100/60"
+                                        >
+                                          {feedbackSubmitting[schedule.id] ? 'Enviando...' : 'Enviar feedback'}
+                                        </button>
+                                        <span className="text-[11px] text-emerald-100/70">
+                                          Compartilhe com a equipe de planejamento onde ajustes sao necessarios.
+                                        </span>
+                                      </div>
+                                    </form>
+                                  </>
                                 )}
                               </div>
                             )}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { createServerComponentSupabaseClient } from "@supabase/auth-helpers-nextjs";
 import CreateUserCard from "./CreateUserCard";
 import ChangePasswordCard from "./ChangePasswordCard";
+import MfaEnrollmentCard from "./MfaEnrollmentCard";
 
 type Profile = {
   name: string | null;
@@ -26,7 +27,12 @@ type Announcement = {
 };
 
 export default async function DashboardPage() {
-  const supabase = createServerComponentSupabaseClient({ cookies, headers });
+  const cookieStore = await cookies();
+  const headerList = await headers();
+  const supabase = createServerComponentSupabaseClient({
+    cookies: () => cookieStore,
+    headers: () => headerList
+  });
   const {
     data: { user }
   } = await supabase.auth.getUser();
@@ -216,6 +222,7 @@ export default async function DashboardPage() {
 
         <div className="grid gap-6 md:grid-cols-2">
           <ChangePasswordCard />
+          <MfaEnrollmentCard />
           <CreateUserCard canManageUsers={isAdmin} />
         </div>
       </div>

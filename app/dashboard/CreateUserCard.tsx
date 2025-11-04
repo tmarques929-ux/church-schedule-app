@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Props = {
   canManageUsers: boolean;
@@ -28,9 +28,10 @@ const MIN_FAMILY_NAME_LENGTH = 3;
 export default function CreateUserCard({ canManageUsers }: Props) {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
-  const [role, setRole] = useState<"MEMBER" | "ADMIN">("MEMBER");
+  const [role, setRole] = useState<"MEMBER" | "LEADER" | "ADMIN">("MEMBER");
   const [ministries, setMinistries] = useState<MinistryOption[]>([]);
   const [selectedMinistryIds, setSelectedMinistryIds] = useState<string[]>([]);
+  const [leaderMinistryIds, setLeaderMinistryIds] = useState<string[]>([]);
   const [optionsLoading, setOptionsLoading] = useState(false);
   const [optionsError, setOptionsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -43,6 +44,7 @@ export default function CreateUserCard({ canManageUsers }: Props) {
   const [familySearchError, setFamilySearchError] = useState<string | null>(null);
   const [selectedFamilyMembers, setSelectedFamilyMembers] = useState<UserLookup[]>([]);
   const [familyName, setFamilyName] = useState("");
+  const familySearchController = useRef<AbortController | null>(null);
 
   useEffect(() => {
     async function loadMinistries() {
@@ -108,41 +110,140 @@ export default function CreateUserCard({ canManageUsers }: Props) {
     };
   }, [selectedFamilyMembers]);
 
-  useEffect(() => {
-    if (familyInfo.existingFamilyName && !familyName) {
-      setFamilyName(familyInfo.existingFamilyName);
-    }
-  }, [familyInfo.existingFamilyName, familyName]);
-
-  function toggleMinistrySelection(ministryId: string) {
-    setSelectedMinistryIds((current) =>
-      current.includes(ministryId) ? current.filter((id) => id !== ministryId) : [...current, ministryId]
-    );
+useEffect(() => {
+  if (familyInfo.existingFamilyName && !familyName) {
+    setFamilyName(familyInfo.existingFamilyName);
   }
+}, [familyInfo.existingFamilyName, familyName]);
 
-  async function performFamilySearch() {
+useEffect(() => {
+  setLeaderMinistryIds((current) => current.filter((id) => selectedMinistryIds.includes(id)));
+}, [selectedMinistryIds]);
+
+useEffect(() => {
+  if (role !== "LEADER") {
+    setLeaderMinistryIds([]);
+  }
+}, [role]);
+
+function toggleMinistrySelection(ministryId: string) {
+  setSelectedMinistryIds((current) => {
+    const alreadySelected = current.includes(ministryId);
+    const next = alreadySelected ? current.filter((id) => id !== ministryId) : [...current, ministryId];
+    if (alreadySelected) {
+      setLeaderMinistryIds((leaders) => leaders.filter((id) => id !== ministryId));
+    }
+    return next;
+  });
+}
+
+function toggleLeaderForMinistry(ministryId: string) {
+  setLeaderMinistryIds((current) =>
+    current.includes(ministryId)
+      ? current.filter((id) => id !== ministryId)
+      : [...current, ministryId]
+  );
+}
+
+  const runFamilySearch = useCallback(
+    async (term: string, options?: { controller?: AbortController }) => {
+      const normalized = term.trim();
+
+      if (normalized.length < MIN_FAMILY_SEARCH_LENGTH) {
+        familySearchController.current?.abort();
+        setFamilySearchResults([]);
+        setFamilySearchError(null);
+        setFamilySearchLoading(false);
+        return;
+      }
+
+      let controller = options?.controller;
+      if (!controller) {
+        controller = new AbortController();
+        familySearchController.current?.abort();
+        familySearchController.current = controller;
+      } else {
+        familySearchController.current = controller;
+      }
+
+      setFamilySearchLoading(true);
+      setFamilySearchError(null);
+
+      try {
+        const params = new URLSearchParams({ term: normalized, limit: "12" });
+        const response = await fetch(`/api/users/search?${params.toString()}`, {
+          signal: controller.signal
+        });
+        const raw = await response.text();
+
+        if (!raw) {
+          if (!response.ok) {
+            throw new Error("Nao foi possivel realizar a busca.");
+          }
+          setFamilySearchResults([]);
+          return;
+        }
+
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          throw new Error("Resposta inesperada do servidor. Tente novamente.");
+        }
+
+        const data = parsed as { results?: unknown; error?: unknown };
+
+        if (!response.ok) {
+          const message =
+            typeof data.error === "string" && data.error.trim().length > 0
+              ? (data.error as string)
+              : "Nao foi possivel realizar a busca.";
+          throw new Error(message);
+        }
+
+        const results = Array.isArray(data.results) ? (data.results as UserLookup[]) : [];
+        setFamilySearchResults(results);
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
+        }
+        setFamilySearchError(err instanceof Error ? err.message : "Erro inesperado ao buscar voluntarios.");
+        setFamilySearchResults([]);
+      } finally {
+        if (!controller.signal.aborted) {
+          setFamilySearchLoading(false);
+        }
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
     const term = familySearchTerm.trim();
     if (term.length < MIN_FAMILY_SEARCH_LENGTH) {
-      setFamilySearchError(`Digite pelo menos ${MIN_FAMILY_SEARCH_LENGTH} caracteres para buscar.`);
+      familySearchController.current?.abort();
       setFamilySearchResults([]);
+      setFamilySearchError(term.length === 0 ? null : `Digite pelo menos ${MIN_FAMILY_SEARCH_LENGTH} caracteres para buscar.`);
+      setFamilySearchLoading(false);
       return;
     }
-    setFamilySearchLoading(true);
-    setFamilySearchError(null);
-    try {
-      const params = new URLSearchParams({ term, limit: "12" });
-      const response = await fetch(`/api/users/search?${params.toString()}`);
-      const json = await response.json();
-      if (!response.ok) {
-        throw new Error(json.error || "Nao foi possivel realizar a busca.");
-      }
-      setFamilySearchResults(Array.isArray(json.results) ? json.results : []);
-    } catch (err) {
-      setFamilySearchError(err instanceof Error ? err.message : "Erro inesperado ao buscar voluntarios.");
-      setFamilySearchResults([]);
-    } finally {
-      setFamilySearchLoading(false);
-    }
+
+    const controller = new AbortController();
+    familySearchController.current?.abort();
+    familySearchController.current = controller;
+
+    const handle = setTimeout(() => {
+      runFamilySearch(term, { controller });
+    }, 300);
+
+    return () => {
+      controller.abort();
+      clearTimeout(handle);
+    };
+  }, [familySearchTerm, runFamilySearch]);
+
+  function performFamilySearch() {
+    return runFamilySearch(familySearchTerm);
   }
 
   function handleAddFamilyMember(candidate: UserLookup) {
@@ -157,6 +258,11 @@ export default function CreateUserCard({ canManageUsers }: Props) {
   function handleRemoveFamilyMember(userId: string) {
     setSelectedFamilyMembers((current) => current.filter((member) => member.user_id !== userId));
   }
+
+  const selectedFamilySet = useMemo(
+    () => new Set(selectedFamilyMembers.map((member) => member.user_id)),
+    [selectedFamilyMembers]
+  );
 
   if (!canManageUsers) return null;
 
@@ -190,6 +296,8 @@ export default function CreateUserCard({ canManageUsers }: Props) {
         username: username.trim().toLowerCase(),
         ministryIds: selectedMinistryIds
       };
+      const leaderIds = leaderMinistryIds.filter((id) => selectedMinistryIds.includes(id));
+      payload.leaderMinistryIds = leaderIds;
 
       if (familyMemberIds.length > 0 || trimmedFamilyName) {
         payload.family = {
@@ -214,6 +322,7 @@ export default function CreateUserCard({ canManageUsers }: Props) {
         setUsername("");
         setRole("MEMBER");
         setSelectedMinistryIds([]);
+        setLeaderMinistryIds([]);
         setSelectedFamilyMembers([]);
         setFamilySearchResults([]);
         setFamilySearchTerm("");
@@ -226,11 +335,6 @@ export default function CreateUserCard({ canManageUsers }: Props) {
       setLoading(false);
     }
   }
-
-  const selectedFamilySet = useMemo(
-    () => new Set(selectedFamilyMembers.map((member) => member.user_id)),
-    [selectedFamilyMembers]
-  );
 
   return (
     <section className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-lg shadow-indigo-900/20">
@@ -269,10 +373,11 @@ export default function CreateUserCard({ canManageUsers }: Props) {
           Papel
           <select
             value={role}
-            onChange={(event) => setRole(event.target.value as "MEMBER" | "ADMIN")}
+            onChange={(event) => setRole(event.target.value as "MEMBER" | "LEADER" | "ADMIN")}
             className="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 focus:border-indigo-300/60 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
           >
             <option value="MEMBER">Membro (acesso padrao)</option>
+            <option value="LEADER">Lider de ministerio</option>
             <option value="ADMIN">Administrador</option>
           </select>
         </label>
@@ -402,35 +507,63 @@ export default function CreateUserCard({ canManageUsers }: Props) {
           <legend className="px-2 text-xs font-semibold uppercase tracking-widest text-indigo-200/70">
             Ministerios em que o voluntario serve
           </legend>
+          {role === "LEADER" && (
+            <p className="text-xs text-emerald-100/70">
+              Selecione os ministerios e marque quais deles terao este voluntario como lider responsavel.
+            </p>
+          )}
           {optionsLoading ? (
             <span className="text-xs text-indigo-100/60">Carregando ministerios...</span>
           ) : ministries.length === 0 ? (
-            <span className="text-xs text-indigo-100/60">{optionsError ?? "Nenhum ministerio cadastrado ainda."}</span>
+            <span className="text-xs text-indigo-100/60">
+              {optionsError ?? "Nenhum ministerio cadastrado ainda."}
+            </span>
           ) : (
             <div className="grid gap-2 md:grid-cols-2">
               {ministries.map((ministry) => {
                 const checked = selectedMinistryIds.includes(ministry.id);
+                const leaderMarked = leaderMinistryIds.includes(ministry.id);
                 return (
-                  <label
+                  <div
                     key={ministry.id}
-                    className={`flex items-start gap-3 rounded-xl border px-4 py-3 transition ${
+                    className={`space-y-3 rounded-xl border px-4 py-3 transition ${
                       checked ? "border-indigo-300/60 bg-indigo-500/20 text-white" : "border-white/10 bg-slate-900/60"
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleMinistrySelection(ministry.id)}
-                      className="mt-1 h-4 w-4 rounded border border-white/30 bg-transparent text-indigo-400 focus:ring-indigo-400"
-                    />
-                    <span className="text-sm font-semibold">
-                      {ministry.name}
-                      {ministry.description && (
-                        <span className="block text-xs font-normal text-indigo-100/70">{ministry.description}</span>
-                      )}
-                      {!ministry.active && <span className="block text-xs font-normal text-rose-200/80">Inativo</span>}
-                    </span>
-                  </label>
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleMinistrySelection(ministry.id)}
+                        className="mt-1 h-4 w-4 rounded border border-white/30 bg-transparent text-indigo-400 focus:ring-indigo-400"
+                      />
+                      <div className="text-sm font-semibold">
+                        <span>{ministry.name}</span>
+                        {ministry.description && (
+                          <span className="block text-xs font-normal text-indigo-100/70">
+                            {ministry.description}
+                          </span>
+                        )}
+                        {!ministry.active && (
+                          <span className="block text-xs font-normal text-rose-200/80">Inativo</span>
+                        )}
+                      </div>
+                    </div>
+                    {role === "LEADER" && checked && (
+                      <label className="flex items-center gap-2 text-xs font-medium text-indigo-100/80">
+                        <input
+                          type="checkbox"
+                          checked={leaderMarked}
+                          onChange={(event) => {
+                            event.stopPropagation();
+                            toggleLeaderForMinistry(ministry.id);
+                          }}
+                          className="h-4 w-4 rounded border border-emerald-300/50 bg-transparent text-emerald-400 focus:ring-emerald-400"
+                        />
+                        <span>Marcar como responsavel deste ministerio</span>
+                      </label>
+                    )}
+                  </div>
                 );
               })}
             </div>

@@ -1,11 +1,13 @@
 // app/api/auth/resolve/route.ts
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@lib/supabaseServer';
+import { serverEnv } from '@lib/env';
 import { ensureAdmin } from '../_utils/ensureAdmin';
 
-const DEFAULT_PASSWORD = process.env.DEFAULT_USER_PASSWORD || 'MudarSenha123';
-const DEFAULT_EMAIL_DOMAIN = (process.env.DEFAULT_USER_EMAIL_DOMAIN || 'voluntarios.icctremembe.local').toLowerCase();
+const DEFAULT_PASSWORD = serverEnv.DEFAULT_USER_PASSWORD;
+const DEFAULT_EMAIL_DOMAIN = serverEnv.DEFAULT_USER_EMAIL_DOMAIN;
 const MIN_FAMILY_NAME_LENGTH = 3;
+const ALLOWED_PROFILE_ROLES = ['ADMIN', 'LEADER', 'MEMBER'] as const;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isJsonRequest(req: Request) {
@@ -39,7 +41,14 @@ export async function POST(request: Request) {
     switch (action) {
       // ------------------------------------------------------
       case 'create': {
-        const { name, role, username, ministryIds, family: rawFamily } = body;
+        const { name, role, username, ministryIds, leaderMinistryIds, family: rawFamily } = body;
+        const normalizedRoleInput =
+          typeof role === 'string' ? role.trim().toUpperCase() : 'MEMBER';
+        const persistedRole = (ALLOWED_PROFILE_ROLES as readonly string[]).includes(
+          normalizedRoleInput
+        )
+          ? normalizedRoleInput
+          : 'MEMBER';
 
         if (!name || !username) {
           return NextResponse.json({ error: 'Nome e username sao obrigatorios' }, { status: 400 });
@@ -73,6 +82,16 @@ export async function POST(request: Request) {
             ? ministryIds
                 .map((v: unknown) => (typeof v === 'string' ? v.trim() : ''))
                 .filter((v: string) => v.length > 0)
+            : [];
+        const normalizedLeaderMinistryIds =
+          Array.isArray(leaderMinistryIds) && leaderMinistryIds.length > 0
+            ? Array.from(
+                new Set(
+                  leaderMinistryIds
+                    .map((v: unknown) => (typeof v === 'string' ? v.trim() : ''))
+                    .filter((v: string) => v.length > 0)
+                )
+              ).filter((id) => normalizedMinistryIds.includes(id))
             : [];
 
         const familyPayload = rawFamily && typeof rawFamily === 'object' ? rawFamily : null;
@@ -161,7 +180,7 @@ export async function POST(request: Request) {
         const { error: profileInsertError } = await supabaseAdmin.from('profiles').insert({
           user_id: created.user.id,
           name,
-          role: role === 'ADMIN' ? 'ADMIN' : 'MEMBER',
+          role: persistedRole,
           username: normalizedUsername
         });
 
@@ -257,10 +276,19 @@ export async function POST(request: Request) {
           }
         }
 
+        const effectiveLeaderIds =
+          normalizedLeaderMinistryIds.length > 0
+            ? normalizedLeaderMinistryIds
+            : persistedRole === 'LEADER'
+            ? normalizedMinistryIds
+            : [];
+        const leaderIdSet = new Set(effectiveLeaderIds);
+
         if (normalizedMinistryIds.length > 0) {
           const insertRows = normalizedMinistryIds.map((ministryId: string) => ({
             member_id: created.user.id,
-            ministry_id: ministryId
+            ministry_id: ministryId,
+            is_leader: leaderIdSet.has(ministryId)
           }));
           const { error: ministriesInsertError } = await supabaseAdmin
             .from('member_ministries')
@@ -488,9 +516,56 @@ export async function POST(request: Request) {
 
         if (metadataUpdateError) {
           return NextResponse.json({ error: metadataUpdateError.message }, { status: 400 });
+      }
+
+      return NextResponse.json({ success: true, userId: targetUserId });
+    }
+
+      // ------------------------------------------------------
+      case 'updateRole': {
+        const { userId, role } = body;
+        const normalizedUserId = typeof userId === 'string' ? userId.trim() : '';
+        const normalizedRole = typeof role === 'string' ? role.trim().toUpperCase() : '';
+
+        if (!normalizedUserId || !UUID_REGEX.test(normalizedUserId)) {
+          return NextResponse.json({ error: 'Informe um usuario valido.' }, { status: 400 });
         }
 
-        return NextResponse.json({ success: true, userId: targetUserId });
+        if (!(ALLOWED_PROFILE_ROLES as readonly string[]).includes(normalizedRole)) {
+          return NextResponse.json(
+            { error: 'Informe um papel valido (ADMIN, LEADER ou MEMBER).' },
+            { status: 400 }
+          );
+        }
+
+        const { data: profile, error: profileError } = await supabaseAdmin
+          .from('profiles')
+          .select('user_id, role')
+          .eq('user_id', normalizedUserId)
+          .maybeSingle();
+
+        if (profileError) {
+          return NextResponse.json({ error: profileError.message }, { status: 400 });
+        }
+
+        if (!profile) {
+          return NextResponse.json({ error: 'Usuario nao encontrado.' }, { status: 404 });
+        }
+
+        if (profile.role === normalizedRole) {
+          return NextResponse.json({ success: true, role: normalizedRole });
+        }
+
+        const { error: updateError } = await supabaseAdmin
+          .from('profiles')
+          .update({ role: normalizedRole })
+          .eq('user_id', normalizedUserId);
+
+        if (updateError) {
+          return NextResponse.json({ error: updateError.message }, { status: 400 });
+        }
+
+        return NextResponse.json({ success: true, role: normalizedRole });
       }
 
       // ------------------------------------------------------
