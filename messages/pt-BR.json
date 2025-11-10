@@ -1,0 +1,90 @@
+{
+  "common": {
+    "appName": "Escalas da Igreja",
+    "skipToContent": "Pular para o conteudo principal",
+    "locale": {
+      "label": "Idioma da interface",
+      "ariaLabel": "Selecionar idioma da interface",
+      "updating": "Atualizando idioma..."
+    },
+    "localeOptions": {
+      "pt-BR": "Portugues (Brasil)",
+      "en": "English"
+    },
+    "actions": {
+      "backToDashboard": "Voltar ao painel principal",
+      "manageVolunteers": "Gerenciar lista de voluntarios"
+    },
+    "placeholders": {
+      "unknownName": "Nome nao informado"
+    },
+    "offline": {
+      "title": "Voce esta offline",
+      "description": "As ultimas escalas serao exibidas assim que a conexao retornar.",
+      "action": "Tentar novamente"
+    }
+  },
+  "login": {
+    "hero": {
+      "badge": "Igreja da Cidade Tremembe",
+      "title": "Painel ministerial - uma igreja para pertencer",
+      "description": "Acesse com suas credenciais para administrar escalas, disponibilidades e agenda de celebracoes. Novos logins sao provisionados pela lideranca e devem alterar a senha apos o primeiro acesso.",
+      "pillServe": "Servir bem, amar melhor",
+      "pillSupport": "Suporte: tmarques9@hotmail.com"
+    },
+    "form": {
+      "title": "Bem-vindo de volta",
+      "subtitle": "Entre com seu usuario ou email cadastrado pela lideranca.",
+      "identifierLabel": "Usuario ou email",
+      "passwordLabel": "Senha",
+      "submit": "Entrar no painel",
+      "loading": "Entrando...",
+      "helper": "Esqueceu sua senha? Fale com o administrador para redefinir."
+    },
+    "errors": {
+      "identifierRequired": "Informe usuario ou email.",
+      "invalidUsername": "Usuario deve conter apenas letras, numeros e ._-",
+      "notFound": "Usuario nao encontrado.",
+      "generic": "Erro inesperado ao entrar."
+    }
+  },
+  "register": {
+    "title": "Cadastro controlado",
+    "description": "Novos acessos sao criados pela lideranca diretamente no painel. Solicite ao administrador para receber seu login e senha inicial."
+  },
+  "admin": {
+    "header": {
+      "badge": "Area restrita para lideranca",
+      "title": "Central administrativa",
+      "description": "Gerencie escalas, senhas e acompanhe o cronograma de cada voluntario. Este espaco e exclusivo para administradores."
+    },
+    "accessLabel": "Acesso de {name}",
+    "chips": {
+      "manageVolunteers": "Gerenciar lista de voluntarios"
+    },
+    "dashboard": {
+      "title": "Visao geral da participacao",
+      "subtitle": "Acompanhe o engajamento dos voluntarios e o volume de celebracoes planejadas.",
+      "metrics": {
+        "volunteers": "Voluntarios ativos",
+        "ministries": "Ministerios ativos",
+        "leaders": "Liderancas",
+        "celebrations": "Proximas celebracoes"
+      },
+      "charts": {
+        "assignmentsTitle": "Distribuicao de funcoes",
+        "assignmentsDescription": "Top 5 voluntarios com mais funcoes atribuidas.",
+        "celebrationsTitle": "Celebracoes por mes",
+        "celebrationsDescription": "Ultimos 6 meses de programacao confirmada."
+      },
+      "error": {
+        "title": "Nao foi possivel carregar os dados",
+        "retry": "Tentar novamente"
+      },
+      "empty": {
+        "title": "Ainda nao ha dados suficientes",
+        "description": "Assim que novos vinculos e celebracoes forem cadastrados, as visualizacoes aparecerao aqui."
+      }
+    }
+  }
+}

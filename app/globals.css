@@ -6,3 +6,39 @@
 html, body {
   @apply min-h-screen bg-gray-50 text-gray-900 antialiased;
 }
+
+:focus-visible {
+  outline: 3px solid #6366f1;
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: -80px;
+  padding: 0.75rem 1.5rem;
+  background-color: #312e81;
+  color: #fff;
+  border-radius: 9999px;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.4);
+  transition: top 0.2s ease, opacity 0.2s ease;
+  opacity: 0;
+  z-index: 1000;
+}
+
+.skip-link:focus-visible {
+  top: 1rem;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

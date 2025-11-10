@@ -1,0 +1,90 @@
+{
+  "common": {
+    "appName": "Church Schedule Hub",
+    "skipToContent": "Skip to main content",
+    "locale": {
+      "label": "Interface language",
+      "ariaLabel": "Select interface language",
+      "updating": "Updating language..."
+    },
+    "localeOptions": {
+      "pt-BR": "Portuguese (Brazil)",
+      "en": "English"
+    },
+    "actions": {
+      "backToDashboard": "Return to main dashboard",
+      "manageVolunteers": "Manage volunteer directory"
+    },
+    "placeholders": {
+      "unknownName": "Name not available"
+    },
+    "offline": {
+      "title": "You are offline",
+      "description": "Your schedules and insights will update once you are connected again.",
+      "action": "Retry"
+    }
+  },
+  "login": {
+    "hero": {
+      "badge": "Igreja da Cidade Tremembe",
+      "title": "Ministry portal - a church to belong to",
+      "description": "Sign in with your credentials to manage schedules, availability and the celebration calendar. New logins are provisioned by leadership and must change their password after the first access.",
+      "pillServe": "Serve well, love even better",
+      "pillSupport": "Support: tmarques9@hotmail.com"
+    },
+    "form": {
+      "title": "Welcome back",
+      "subtitle": "Sign in with the username or email provided by leadership.",
+      "identifierLabel": "Username or email",
+      "passwordLabel": "Password",
+      "submit": "Enter the dashboard",
+      "loading": "Signing in...",
+      "helper": "Forgot your password? Contact an administrator to reset it."
+    },
+    "errors": {
+      "identifierRequired": "Please enter a username or email.",
+      "invalidUsername": "Usernames can only include letters, numbers and ._-",
+      "notFound": "User not found.",
+      "generic": "Unexpected error while signing in."
+    }
+  },
+  "register": {
+    "title": "Provisioned access only",
+    "description": "New accounts are created by leadership directly in the dashboard. Please reach out to an administrator to receive your initial login."
+  },
+  "admin": {
+    "header": {
+      "badge": "Leadership-only area",
+      "title": "Administrative command center",
+      "description": "Manage schedules, passwords and review the agenda for every volunteer. This space is reserved for administrators."
+    },
+    "accessLabel": "Access granted to {name}",
+    "chips": {
+      "manageVolunteers": "Manage volunteer directory"
+    },
+    "dashboard": {
+      "title": "Participation overview",
+      "subtitle": "Track volunteer engagement and the cadence of upcoming celebrations.",
+      "metrics": {
+        "volunteers": "Active volunteers",
+        "ministries": "Active ministries",
+        "leaders": "Leadership roles",
+        "celebrations": "Upcoming celebrations"
+      },
+      "charts": {
+        "assignmentsTitle": "Role distribution",
+        "assignmentsDescription": "Top 5 volunteers with the highest number of assignments.",
+        "celebrationsTitle": "Celebrations per month",
+        "celebrationsDescription": "Last 6 months of confirmed programming."
+      },
+      "error": {
+        "title": "Unable to load insights",
+        "retry": "Try again"
+      },
+      "empty": {
+        "title": "Not enough data yet",
+        "description": "As soon as assignments and celebrations are recorded you'll see insights here."
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "Escalas da Igreja",
+  "short_name": "Escalas",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#312e81",
+  "lang": "pt-BR",
+  "description": "Acompanhe escalas, celebracoes e voluntarios mesmo sem conexao.",
+  "icons": [
+    {
+      "src": "/icons/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

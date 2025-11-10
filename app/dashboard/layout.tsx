@@ -50,7 +50,9 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
           </div>
         </div>
       </header>
-      <main className="pt-20 md:pt-24">{children}</main>
+      <main id="main-content" tabIndex={-1} className="pt-20 md:pt-24">
+        {children}
+      </main>
     </div>
   );
 }

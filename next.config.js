@@ -1,11 +1,22 @@
+const createNextIntlPlugin = require("next-intl/plugin");
+const withPWA = require("next-pwa")({
+  dest: "public",
+  register: true,
+  skipWaiting: true,
+  disable: process.env.NODE_ENV === "development",
+  runtimeCaching: require("next-pwa/cache"),
+  fallbacks: {
+    document: "/offline"
+  }
+});
+const withNextIntl = createNextIntlPlugin("./next-intl.config.js");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    // Habilita cache de componentes no App Router (Next 16)
     cacheComponents: true
   },
   typescript: {
-    // Nao quebra o build por erro de TypeScript
     ignoreBuildErrors: true
   },
   turbopack: {
@@ -13,4 +24,4 @@ const nextConfig = {
   }
 };
 
-module.exports = nextConfig;
+module.exports = withNextIntl(withPWA(nextConfig));

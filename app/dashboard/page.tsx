@@ -163,38 +163,24 @@ export default async function DashboardPage() {
         <section className="grid gap-6 md:grid-cols-2">
           <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 via-white/5 to-white/10 p-8 text-sm text-indigo-100 shadow-[0_30px_90px_-40px_rgba(56,97,251,0.6)]">
             <div className="flex items-center gap-3 text-white">
-              <span className="text-2xl">⚡</span>
-              <h3 className="text-xl font-semibold">Ações rápidas</h3>
+              <span className="text-2xl">🔒</span>
+              <h3 className="text-xl font-semibold">Área restrita administrativa</h3>
             </div>
-            <p className="mt-3 text-indigo-100/80">Navegue com agilidade entre as principais rotinas do ministério.</p>
-            <div className="mt-6 flex flex-wrap gap-3">
+            <p className="mt-3 text-indigo-100/80">
+              Ferramentas exclusivas para liderança monitorar escalas, voluntários e comunicados internos.
+            </p>
+            {isAdmin ? (
               <Link
-                href="/dashboard/celebrations?view=calendar"
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 font-semibold text-indigo-100 transition hover:bg-white/20"
+                href="/dashboard/admin"
+                className="mt-6 inline-flex items-center gap-2 rounded-full border border-indigo-300/40 bg-indigo-500/20 px-5 py-3 font-semibold text-indigo-50 transition hover:bg-indigo-500/30"
               >
-                🗓️ Ver calendário
+                Acessar central administrativa
               </Link>
-              <Link
-                href="/dashboard/schedules?mode=admin"
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 font-semibold text-indigo-100 transition hover:bg-white/20"
-              >
-                🛠️ Gerar nova escala
-              </Link>
-              <Link
-                href="/dashboard/availabilities?mode=batch"
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 font-semibold text-indigo-100 transition hover:bg-white/20"
-              >
-                🤝 Confirmar equipe
-              </Link>
-              {isAdmin && (
-                <Link
-                  href="/dashboard/admin"
-                  className="inline-flex items-center gap-2 rounded-full border border-indigo-300/40 bg-indigo-500/20 px-4 py-2 font-semibold text-indigo-100 transition hover:bg-indigo-500/30"
-                >
-                  🔒 Área restrita (admins)
-                </Link>
-              )}
-            </div>
+            ) : (
+              <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-indigo-100/80">
+                Disponível apenas para administradores. Solicite autorização à sua liderança para atuar na gestão das escalas.
+              </div>
+            )}
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-[#201D34]/70 via-[#15122A]/80 to-[#0B0A19]/90 p-8 text-sm text-indigo-100 shadow-[0_30px_90px_-50px_rgba(30,64,175,0.6)]">
@@ -210,12 +196,6 @@ export default async function DashboardPage() {
                 </li>
               ))}
             </ul>
-            <Link
-              href="mailto:ministerios@icctremembe.com"
-              className="mt-6 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#5A50F6] to-[#21C1F3] px-4 py-2 font-semibold text-white shadow-lg shadow-indigo-900/40 transition hover:opacity-90"
-            >
-              ✉️ Falar com a coordenação
-            </Link>
           </div>
         </section>
 
