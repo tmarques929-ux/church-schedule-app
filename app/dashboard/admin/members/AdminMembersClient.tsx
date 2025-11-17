@@ -2,18 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type MemberRecord = {
   id: string;
   name: string;
   username: string | null;
   role: "ADMIN" | "LEADER" | "MEMBER";
+  birthDate: string | null;
   family: { id: string; name: string } | null;
-  ministries: Array<{
-    id: string;
-    name: string;
-    isLeader: boolean;
-  }>;
+  ministries: string[];
 };
 
 type FamilyRecord = {
@@ -29,6 +27,9 @@ type MembersResponse = {
     pageSize: number;
     total: number;
     hasMore: boolean;
+  };
+  features?: {
+    birthDate?: boolean;
   };
 };
 
@@ -57,8 +58,12 @@ export default function AdminMembersClient({ adminName }: AdminMembersClientProp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
+  const [birthDateDrafts, setBirthDateDrafts] = useState<Record<string, string>>({});
+  const [birthDateSavingId, setBirthDateSavingId] = useState<string | null>(null);
+  const [birthDateEnabled, setBirthDateEnabled] = useState(true);
 
   const fetchController = useRef<AbortController | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -115,8 +120,19 @@ export default function AdminMembersClient({ adminName }: AdminMembersClientProp
           throw new Error(json.error || "Nao foi possivel carregar os membros.");
         }
 
-        setMembers(Array.isArray(json.members) ? json.members : []);
+        const list: MemberRecord[] = Array.isArray(json.members) ? json.members : [];
+        setMembers(list);
         setTotal(json.pagination?.total ?? 0);
+        setBirthDateEnabled(json.features?.birthDate !== false);
+        setBirthDateDrafts((currentDrafts) => {
+          const nextDrafts: Record<string, string> = {};
+          list.forEach((member) => {
+            if (currentDrafts[member.id] !== undefined) {
+              nextDrafts[member.id] = currentDrafts[member.id];
+            }
+          });
+          return nextDrafts;
+        });
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Erro inesperado ao listar membros.");
@@ -137,6 +153,7 @@ export default function AdminMembersClient({ adminName }: AdminMembersClientProp
     return () => controller.abort();
   }, [loadMembers]);
 
+  const maxBirthDate = useMemo(() => new Date().toISOString().split("T")[0], []);
   const totalPages = useMemo(() => Math.max(Math.ceil(total / pageSize), 1), [pageSize, total]);
 
   const handleRoleChange = useCallback(
@@ -171,6 +188,75 @@ export default function AdminMembersClient({ adminName }: AdminMembersClientProp
     []
   );
 
+  const handleNavigateToMember = useCallback(
+    (memberId: string) => {
+      router.push(`/dashboard/admin?focus=ministries&user=${memberId}`);
+    },
+    [router]
+  );
+
+  const handleBirthDateInput = useCallback((memberId: string, value: string) => {
+    setBirthDateDrafts((current) => ({ ...current, [memberId]: value }));
+  }, []);
+
+  const handleBirthDateReset = useCallback((memberId: string) => {
+    setBirthDateDrafts((current) => {
+      const next = { ...current };
+      delete next[memberId];
+      return next;
+    });
+  }, []);
+
+  const handleBirthDateSave = useCallback(
+    async (memberId: string) => {
+      if (!birthDateEnabled) return;
+      const member = members.find((item) => item.id === memberId);
+      if (!member) return;
+      const draft = birthDateDrafts[memberId];
+      const original = member.birthDate ?? "";
+      const nextValue = draft !== undefined ? draft : original;
+      if (nextValue === original) return;
+
+      setBirthDateSavingId(memberId);
+      setError(null);
+      try {
+        const response = await fetch("/api/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "updateBirthDate",
+            userId: memberId,
+            birthDate: nextValue || null
+          })
+        });
+        const text = await response.text();
+        const json = text ? JSON.parse(text) : {};
+        if (!response.ok) {
+          throw new Error(json.error || "Nao foi possivel atualizar a data de nascimento.");
+        }
+
+        const confirmedBirthDate: string | null =
+          typeof json.birthDate === "string" ? json.birthDate : nextValue || null;
+
+        setMembers((current) =>
+          current.map((item) =>
+            item.id === memberId ? { ...item, birthDate: confirmedBirthDate } : item
+          )
+        );
+        setBirthDateDrafts((current) => {
+          const next = { ...current };
+          delete next[memberId];
+          return next;
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Erro ao atualizar data de nascimento.");
+      } finally {
+        setBirthDateSavingId(null);
+      }
+    },
+    [birthDateDrafts, birthDateEnabled, members]
+  );
+
   const summary = useMemo(() => {
     const admins = members.filter((member) => member.role === "ADMIN").length;
     const familiesSet = new Set(
@@ -183,6 +269,8 @@ export default function AdminMembersClient({ adminName }: AdminMembersClientProp
       families: familiesSet.size
     };
   }, [members]);
+
+  const birthDateHeaderLabel = birthDateEnabled ? "Nascimento" : "Nascimento (indisponivel)";
 
   return (
     <section className="min-h-screen bg-slate-950 text-slate-100">
@@ -294,6 +382,15 @@ export default function AdminMembersClient({ adminName }: AdminMembersClientProp
           </div>
         </div>
 
+        {!birthDateEnabled && (
+          <div className="rounded-3xl border border-amber-300/30 bg-amber-500/10 px-6 py-4 text-sm text-amber-100 shadow-inner shadow-amber-900/30">
+            Campo de aniversários indisponível neste ambiente. Execute a migration que adiciona
+            <code className="mx-1 rounded bg-amber-300/20 px-1 py-0.5 text-xs font-mono text-amber-50">birth_date</code>
+            à tabela<code className="mx-1 rounded bg-amber-300/20 px-1 py-0.5 text-xs font-mono text-amber-50">profiles</code>
+            para habilitar o cadastro e a edição de aniversários.
+          </div>
+        )}
+
         <div className="overflow-hidden rounded-3xl border border-white/10 bg-slate-900/60 shadow-lg shadow-indigo-900/30">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-white/10 text-sm text-indigo-100/90">
@@ -301,6 +398,7 @@ export default function AdminMembersClient({ adminName }: AdminMembersClientProp
                 <tr>
                   <th className="px-4 py-3 text-left">Nome</th>
                   <th className="px-4 py-3 text-left">Username</th>
+                  <th className="px-4 py-3 text-left">{birthDateHeaderLabel}</th>
                   <th className="px-4 py-3 text-left">Família</th>
                   <th className="px-4 py-3 text-left">Ministérios</th>
                   <th className="px-4 py-3 text-left">Papel</th>
@@ -308,71 +406,137 @@ export default function AdminMembersClient({ adminName }: AdminMembersClientProp
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {members.map((member) => (
-                  <tr key={member.id} className="hover:bg-white/5">
-                    <td className="px-4 py-4 font-semibold text-white">
-                      <div className="flex flex-col">
-                        <span>{member.name || "Sem nome cadastrado"}</span>
-                        <span className="text-xs text-indigo-100/60">{member.id}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex flex-col">
-                        <span>{member.username ?? "Sem username"}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      {member.family ? (
-                        <span className="inline-flex items-center gap-2 rounded-full border border-indigo-300/40 bg-indigo-500/10 px-3 py-1 text-xs text-indigo-100/80">
-                          {member.family.name}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-indigo-100/50">Sem família</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 text-xs text-indigo-100/75">
-                      {member.ministries.length > 0 ? (
-                        <span>{member.ministries.join(", ")}</span>
-                      ) : (
-                        <span className="text-indigo-100/45">Nenhum ministério vinculado</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4">
-                      <select
-                        value={member.role}
-                        disabled={updatingRoleId === member.id}
-                        onChange={(event) =>
-                          handleRoleChange(member.id, event.target.value as "ADMIN" | "LEADER" | "MEMBER")
-                        }
-                        className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-xs text-white shadow-inner shadow-black/40 focus:border-indigo-300/60 focus:outline-none focus:ring-2 focus:ring-indigo-400/40 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <option value="MEMBER">MEMBER</option>
-                        <option value="LEADER">LEADER</option>
-                        <option value="ADMIN">ADMIN</option>
-                      </select>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        <Link
-                          href={`/dashboard/admin?focus=ministries&user=${member.id}`}
-                          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 font-semibold text-indigo-100 transition hover:bg-white/20"
+                {members.map((member) => {
+                  const draftBirthDate = birthDateDrafts[member.id];
+                  const originalBirthDate = member.birthDate ?? "";
+                  const effectiveBirthDate = draftBirthDate ?? originalBirthDate;
+                  const hasBirthDateDraft = draftBirthDate !== undefined;
+                  const birthDateChanged =
+                    hasBirthDateDraft && draftBirthDate !== originalBirthDate;
+                  const showMissingBirthDateHint = !member.birthDate && !hasBirthDateDraft;
+
+                  return (
+                    <tr key={member.id} className="hover:bg-white/5">
+                      <td className="px-4 py-4 text-white">
+                        <button
+                          type="button"
+                          onClick={() => handleNavigateToMember(member.id)}
+                          className="flex w-full flex-col rounded-2xl border border-transparent px-3 py-2 text-left transition hover:border-indigo-400/40 hover:bg-white/5 focus:outline-none focus-visible:border-indigo-400/70 focus-visible:ring-2 focus-visible:ring-indigo-400/40"
+                          title="Abrir perfil completo no painel administrativo"
                         >
-                          Ministérios
-                        </Link>
-                        <Link
-                          href={`/dashboard/admin?focus=family&user=${member.id}`}
-                          className="inline-flex items-center gap-2 rounded-full border border-indigo-300/40 bg-indigo-500/20 px-3 py-1 font-semibold text-white transition hover:bg-indigo-500/30"
+                          <span className="font-semibold">{member.name || "Sem nome cadastrado"}</span>
+                          <span className="text-xs text-indigo-100/60">{member.id}</span>
+                          <span className="text-[11px] text-indigo-200/70">Clique para editar rapidamente</span>
+                        </button>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-col">
+                          <span>{member.username ?? "Sem username"}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        {birthDateEnabled ? (
+                          <div className="flex flex-col gap-2">
+                            <input
+                              type="date"
+                              value={effectiveBirthDate}
+                              max={maxBirthDate}
+                              disabled={birthDateSavingId === member.id}
+                              onChange={(event) => handleBirthDateInput(member.id, event.target.value)}
+                              className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-xs text-white shadow-inner shadow-black/40 focus:border-indigo-300/60 focus:outline-none focus:ring-2 focus:ring-indigo-400/40 disabled:cursor-not-allowed disabled:opacity-60"
+                            />
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleBirthDateSave(member.id)}
+                                disabled={!birthDateChanged || birthDateSavingId === member.id}
+                                className="inline-flex items-center gap-2 rounded-full border border-indigo-300/40 bg-indigo-500/70 px-3 py-1 text-xs font-semibold text-white transition hover:bg-indigo-500/80 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {birthDateSavingId === member.id ? "Salvando..." : "Salvar"}
+                              </button>
+                              {hasBirthDateDraft && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleBirthDateReset(member.id)}
+                                  disabled={birthDateSavingId === member.id}
+                                  className="inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-indigo-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  Cancelar
+                                </button>
+                              )}
+                            </div>
+                            {showMissingBirthDateHint && (
+                              <p className="text-[11px] text-indigo-100/60">Sem data cadastrada</p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-indigo-100/50">
+                            Execute a migration para habilitar o campo de aniversários.
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-4 py-4">
+                        {member.family ? (
+                          <span className="inline-flex items-center gap-2 rounded-full border border-indigo-300/40 bg-indigo-500/10 px-3 py-1 text-xs text-indigo-100/80">
+                            {member.family.name}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-indigo-100/50">Sem familia</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-xs text-indigo-100/75">
+                        {member.ministries.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {member.ministries.map((label) => (
+                              <span
+                                key={`${member.id}-${label}`}
+                                className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-indigo-100/80"
+                              >
+                                {label}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-indigo-100/45">Nenhum ministerio vinculado</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4">
+                        <select
+                          value={member.role}
+                          disabled={updatingRoleId === member.id}
+                          onChange={(event) =>
+                            handleRoleChange(member.id, event.target.value as "ADMIN" | "LEADER" | "MEMBER")
+                          }
+                          className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-xs text-white shadow-inner shadow-black/40 focus:border-indigo-300/60 focus:outline-none focus:ring-2 focus:ring-indigo-400/40 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          Família
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          <option value="MEMBER">MEMBER</option>
+                          <option value="LEADER">LEADER</option>
+                          <option value="ADMIN">ADMIN</option>
+                        </select>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          <Link
+                            href={`/dashboard/admin?focus=ministries&user=${member.id}`}
+                            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 font-semibold text-indigo-100 transition hover:bg-white/20"
+                          >
+                            Ministerios
+                          </Link>
+                          <Link
+                            href={`/dashboard/admin?focus=family&user=${member.id}`}
+                            className="inline-flex items-center gap-2 rounded-full border border-indigo-300/40 bg-indigo-500/20 px-3 py-1 font-semibold text-white transition hover:bg-indigo-500/30"
+                          >
+                            Familia
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {members.length === 0 && !loading && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-indigo-100/60">
-                      Nenhum voluntário encontrado para os filtros selecionados.
+                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-indigo-100/60">
+                      Nenhum voluntario encontrado para os filtros selecionados.
                     </td>
                   </tr>
                 )}
@@ -420,5 +584,6 @@ export default function AdminMembersClient({ adminName }: AdminMembersClientProp
     </section>
   );
 }
+
 
 

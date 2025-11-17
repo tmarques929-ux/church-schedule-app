@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   name text NOT NULL,
   role text NOT NULL CHECK (role IN ('ADMIN', 'LEADER', 'MEMBER')),
   family_id uuid REFERENCES public.families (id) ON DELETE SET NULL,
+  birth_date date,
   created_at timestamptz NOT NULL DEFAULT NOW(),
   updated_at timestamptz NOT NULL DEFAULT NOW()
 );

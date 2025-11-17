@@ -4,6 +4,32 @@ import { ensureAdmin } from "../../_utils/ensureAdmin";
 
 const MAX_PAGE_SIZE = 100;
 
+function buildMembersSelect(includeBirthDate: boolean) {
+  const birthDateField = includeBirthDate ? "birth_date," : "";
+  return `
+        user_id,
+        name,
+        username,
+        role,
+        ${birthDateField}
+        family_id,
+        families ( id, name ),
+        member_ministries (
+          ministry_id,
+          is_leader,
+          ministries (
+            id,
+            name
+          )
+        )
+      `;
+}
+
+function isBirthDateMissingError(error: { message?: string } | null) {
+  if (!error?.message) return false;
+  return error.message.toLowerCase().includes("birth_date");
+}
+
 export async function GET(request: Request) {
   const adminCheck = await ensureAdmin();
   if ("errorResponse" in adminCheck) {
@@ -24,82 +50,67 @@ export async function GET(request: Request) {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let query = supabaseAdmin
-    .from("profiles")
-    .select(
-      `
-        user_id,
-        name,
-        username,
-        role,
-        family_id,
-        families ( id, name ),
-        member_ministries (
-          ministry_id,
-          is_leader,
-          ministries (
-            id,
-            name
-          )
-        )
-      `,
-      { count: "exact" }
-    )
-    .order("name")
-    .range(from, to);
+  const runQuery = (includeBirthDate: boolean) => {
+    let query = supabaseAdmin
+      .from("profiles")
+      .select(buildMembersSelect(includeBirthDate), { count: "exact" })
+      .order("name")
+      .range(from, to);
 
-  if (normalizedQuery) {
-    const ilike = `%${normalizedQuery}%`;
-    query = query.or(`name.ilike.${ilike},username.ilike.${ilike}`);
+    if (normalizedQuery) {
+      const ilike = `%${normalizedQuery}%`;
+      query = query.or(`name.ilike.${ilike},username.ilike.${ilike}`);
+    }
+
+    if (roleFilter === "ADMIN" || roleFilter === "LEADER" || roleFilter === "MEMBER") {
+      query = query.eq("role", roleFilter);
+    }
+
+    if (familyFilter) {
+      query = query.eq("family_id", familyFilter);
+    }
+
+    return query;
+  };
+
+  let includesBirthDate = true;
+  let { data, error, count } = await runQuery(includesBirthDate);
+
+  if (error && includesBirthDate && isBirthDateMissingError(error)) {
+    includesBirthDate = false;
+    ({ data, error, count } = await runQuery(includesBirthDate));
   }
-
-  if (roleFilter === "ADMIN" || roleFilter === "LEADER" || roleFilter === "MEMBER") {
-    query = query.eq("role", roleFilter);
-  }
-
-  if (familyFilter) {
-    query = query.eq("family_id", familyFilter);
-  }
-
-  const { data, error, count } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
   const members =
-    data?.map((profile: any) => ({
-      id: profile.user_id,
-      name: profile.name,
-      username: profile.username,
-      role: profile.role,
-      family: profile.families
-        ? { id: profile.families.id as string, name: profile.families.name as string }
-        : null,
-      ministries: Array.isArray(profile.member_ministries)
-        ? profile.member_ministries
-            .map((entry: any) => {
-              const ministryName = entry?.ministries?.name ?? null;
-              if (!ministryName) return null;
-              return {
-                id: entry.ministry_id as string,
-                name: ministryName as string,
-                isLeader: Boolean(entry?.is_leader)
-              };
-            })
-            .filter(
-              (
-                value:
-                  | {
-                      id: string;
-                      name: string;
-                      isLeader: boolean;
-                    }
-                  | null
-              ): value is { id: string; name: string; isLeader: boolean } => Boolean(value)
-            )
-        : []
-    })) ?? [];
+    data?.map((profile: any) => {
+      const ministries =
+        Array.isArray(profile.member_ministries) && profile.member_ministries.length > 0
+          ? profile.member_ministries
+              .map((entry: any) => {
+                const ministryName = entry?.ministries?.name ?? null;
+                if (!ministryName) return null;
+                const leaderLabel = entry?.is_leader ? " (lider)" : "";
+                return `${ministryName}${leaderLabel}`;
+              })
+              .filter((value: string | null): value is string => Boolean(value))
+          : [];
+
+      return {
+        id: profile.user_id,
+        name: profile.name,
+        username: profile.username,
+        role: profile.role,
+        birthDate: includesBirthDate ? profile.birth_date ?? null : null,
+        family: profile.families
+          ? { id: profile.families.id as string, name: profile.families.name as string }
+          : null,
+        ministries
+      };
+    }) ?? [];
 
   const total = count ?? members.length;
   const hasMore = to + 1 < (count ?? 0);
@@ -111,6 +122,9 @@ export async function GET(request: Request) {
       pageSize,
       total,
       hasMore
+    },
+    features: {
+      birthDate: includesBirthDate
     }
   });
 }

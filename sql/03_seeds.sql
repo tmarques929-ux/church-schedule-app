@@ -69,15 +69,15 @@ WITH fam AS (
   SELECT id FROM public.families WHERE name = 'Família Souza' LIMIT 1
 ),
 admins AS (
-  SELECT gen_random_uuid() AS user_id, 'Admin' AS name, 'ADMIN' AS role
+  SELECT gen_random_uuid() AS user_id, 'Admin' AS name, 'ADMIN' AS role, DATE '1985-01-15' AS birth_date
 ),
 members AS (
-  SELECT gen_random_uuid() AS user_id, 'Ana' AS name, 'MEMBER' AS role UNION ALL
-  SELECT gen_random_uuid(), 'João', 'MEMBER' UNION ALL
-  SELECT gen_random_uuid(), 'Carla', 'MEMBER'
+  SELECT gen_random_uuid() AS user_id, 'Ana' AS name, 'MEMBER' AS role, DATE '1993-04-12' AS birth_date UNION ALL
+  SELECT gen_random_uuid(), 'João', 'MEMBER', DATE '1990-11-03' UNION ALL
+  SELECT gen_random_uuid(), 'Carla', 'MEMBER', DATE '1995-02-27'
 )
-INSERT INTO public.profiles (user_id, name, role, family_id)
-SELECT u.user_id, u.name, u.role, fam.id
+INSERT INTO public.profiles (user_id, name, role, family_id, birth_date)
+SELECT u.user_id, u.name, u.role, fam.id, u.birth_date
 FROM (
   SELECT * FROM admins
   UNION ALL

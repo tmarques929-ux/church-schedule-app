@@ -25,6 +25,20 @@ type Announcement = {
   message: string;
 };
 
+type BirthdayProfile = {
+  user_id: string;
+  name: string | null;
+  username: string | null;
+  birth_date: string | null;
+};
+
+type BirthdayHighlight = {
+  id: string;
+  name: string;
+  username: string | null;
+  ageText: string | null;
+};
+
 export default async function DashboardPage() {
   const cookieStore = await cookies();
   const headerList = await headers();
@@ -48,6 +62,63 @@ export default async function DashboardPage() {
 
   const currentRole = profile?.role ?? "-";
   const isAdmin = currentRole === "ADMIN";
+  let birthdayFeatureEnabled = true;
+  let birthdayLoadError: string | null = null;
+  let todaysBirthdays: BirthdayHighlight[] = [];
+
+  try {
+    const { data: birthdayRows, error: birthdaysError } = await supabase
+      .from("profiles")
+      .select<BirthdayProfile>("user_id, name, username, birth_date")
+      .not("birth_date", "is", null);
+
+    if (birthdaysError) {
+      if (birthdaysError.message?.toLowerCase().includes("birth_date")) {
+        birthdayFeatureEnabled = false;
+      } else {
+        throw birthdaysError;
+      }
+    } else if (birthdayRows) {
+      const today = new Date();
+      const todayMonth = today.getUTCMonth() + 1;
+      const todayDay = today.getUTCDate();
+      const currentYear = today.getUTCFullYear();
+      todaysBirthdays = birthdayRows
+        .map((candidate) => {
+          if (!candidate.birth_date) {
+            return null;
+          }
+          const [yearStr, monthStr, dayStr] = candidate.birth_date.split("-");
+          const month = Number(monthStr);
+          const day = Number(dayStr);
+          if (!Number.isFinite(month) || !Number.isFinite(day) || month !== todayMonth || day !== todayDay) {
+            return null;
+          }
+          const year = Number(yearStr);
+          const usernameLabel = candidate.username?.trim() ?? null;
+          const normalizedUsername = usernameLabel ? usernameLabel.toLowerCase() : null;
+          const resolvedName = candidate.name?.trim();
+          const displayName =
+            normalizedUsername === "thiagomrib"
+              ? "Thiago Marques Ribeiro"
+              : resolvedName && resolvedName.length > 0
+              ? resolvedName
+              : usernameLabel ?? "Voluntario";
+          const age = Number.isFinite(year) && year > 0 ? currentYear - year : null;
+          const ageText = age && age > 0 ? `${age} anos` : null;
+          return {
+            id: candidate.user_id,
+            name: displayName,
+            username: usernameLabel,
+            ageText
+          } as BirthdayHighlight;
+        })
+        .filter((item): item is BirthdayHighlight => Boolean(item))
+        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    }
+  } catch (err) {
+    birthdayLoadError = "Nao foi possivel carregar os aniversariantes. Tente novamente mais tarde.";
+  }
 
   const quickCards: QuickCard[] = [
     {
@@ -158,6 +229,59 @@ export default async function DashboardPage() {
               </span>
             </Link>
           ))}
+        </section>
+
+        <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-[#1B1230]/80 via-[#110A21]/85 to-[#06030F]/90 p-8 text-sm text-indigo-100 shadow-[0_35px_120px_-60px_rgba(124,58,237,0.55)]">
+          <div className="flex flex-wrap items-center justify-between gap-4 text-white">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🎂</span>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.4em] text-indigo-200/70">Celebre hoje</p>
+                <h3 className="text-xl font-semibold">Aniversariantes do dia</h3>
+              </div>
+            </div>
+            {todaysBirthdays.length > 0 && (
+              <span className="rounded-full border border-white/10 bg-white/10 px-4 py-1 text-xs font-semibold text-white/80">
+                {todaysBirthdays.length === 1
+                  ? "1 voluntario celebrando"
+                  : `${todaysBirthdays.length} voluntarios celebrando`}
+              </span>
+            )}
+          </div>
+          {!birthdayFeatureEnabled ? (
+            <p className="mt-4 rounded-2xl border border-amber-300/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/90">
+              Este painel precisa da coluna <code className="mx-1 rounded bg-amber-300/20 px-1 py-0.5 text-xs font-mono">birth_date</code> em
+              <code className="mx-1 rounded bg-amber-300/20 px-1 py-0.5 text-xs font-mono">profiles</code>. Execute a migration para habilitar os aniversariantes.
+            </p>
+          ) : birthdayLoadError ? (
+            <p className="mt-4 rounded-2xl border border-rose-300/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100/90">
+              {birthdayLoadError}
+            </p>
+          ) : todaysBirthdays.length === 0 ? (
+            <p className="mt-4 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-indigo-100/80">
+              Nenhum aniversariante cadastrado para hoje. Atualize os perfis e compartilhe esse momento com a equipe.
+            </p>
+          ) : (
+            <ul className="mt-5 space-y-3">
+              {todaysBirthdays.map((birthday) => (
+                <li
+                  key={birthday.id}
+                  className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="text-base font-semibold text-white">{birthday.name}</p>
+                    <p className="text-xs text-indigo-100/70">
+                      {birthday.username ? `@${birthday.username}` : "Sem username cadastrado"}
+                    </p>
+                  </div>
+                  <div className="text-sm text-indigo-100/80 sm:text-right">
+                    <p className="font-semibold text-white">{birthday.ageText ?? "Feliz aniversario"}</p>
+                    <p className="text-xs text-indigo-100/70">Envie uma mensagem e celebre juntos</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         <section className="grid gap-6 md:grid-cols-2">

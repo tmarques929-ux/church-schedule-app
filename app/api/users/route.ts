@@ -9,6 +9,65 @@ const DEFAULT_EMAIL_DOMAIN = serverEnv.DEFAULT_USER_EMAIL_DOMAIN;
 const MIN_FAMILY_NAME_LENGTH = 3;
 const ALLOWED_PROFILE_ROLES = ['ADMIN', 'LEADER', 'MEMBER'] as const;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const BIRTH_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_MEMBER_AGE_YEARS = 110;
+
+type BirthDateValidationResult =
+  | { ok: true; value: string | null }
+  | { ok: false; error: string };
+
+function validateBirthDateInput(
+  input: unknown,
+  options: { required: boolean; requiredMessage?: string }
+): BirthDateValidationResult {
+  const trimmed = typeof input === 'string' ? input.trim() : '';
+
+  if (!trimmed) {
+    if (options.required) {
+      return {
+        ok: false,
+        error: options.requiredMessage ?? 'Informe a data de nascimento do voluntario.'
+      };
+    }
+    return { ok: true, value: null };
+  }
+
+  if (!BIRTH_DATE_REGEX.test(trimmed)) {
+    return { ok: false, error: 'Informe a data de nascimento no formato AAAA-MM-DD.' };
+  }
+
+  const [yearStr, monthStr, dayStr] = trimmed.split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  const birthDateUtc = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    Number.isNaN(birthDateUtc.valueOf()) ||
+    birthDateUtc.getUTCFullYear() !== year ||
+    birthDateUtc.getUTCMonth() + 1 !== month ||
+    birthDateUtc.getUTCDate() !== day
+  ) {
+    return { ok: false, error: 'Data de nascimento invalida.' };
+  }
+
+  const today = new Date();
+  const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+
+  if (birthDateUtc.getTime() > todayUtc) {
+    return { ok: false, error: 'Data de nascimento no futuro nao e permitida.' };
+  }
+
+  const computedAge = today.getUTCFullYear() - year;
+  if (computedAge > MAX_MEMBER_AGE_YEARS) {
+    return {
+      ok: false,
+      error: 'Confirme a data de nascimento. Idade maxima permitida foi excedida.'
+    };
+  }
+
+  return { ok: true, value: trimmed };
+}
 
 function isJsonRequest(req: Request) {
   const ct = req.headers.get('content-type') || '';
@@ -20,6 +79,11 @@ function normalizeUuid(value: unknown): string | null {
   const trimmed = value.trim();
   if (!UUID_REGEX.test(trimmed)) return null;
   return trimmed;
+}
+
+function isBirthDateColumnMissing(message?: string | null) {
+  if (!message) return false;
+  return message.toLowerCase().includes('birth_date');
 }
 
 export async function POST(request: Request) {
@@ -41,7 +105,7 @@ export async function POST(request: Request) {
     switch (action) {
       // ------------------------------------------------------
       case 'create': {
-        const { name, role, username, ministryIds, leaderMinistryIds, family: rawFamily } = body;
+        const { name, role, username, ministryIds, leaderMinistryIds, family: rawFamily, birthDate } = body;
         const normalizedRoleInput =
           typeof role === 'string' ? role.trim().toUpperCase() : 'MEMBER';
         const persistedRole = (ALLOWED_PROFILE_ROLES as readonly string[]).includes(
@@ -53,6 +117,15 @@ export async function POST(request: Request) {
         if (!name || !username) {
           return NextResponse.json({ error: 'Nome e username sao obrigatorios' }, { status: 400 });
         }
+
+        const birthDateValidation = validateBirthDateInput(birthDate, {
+          required: true,
+          requiredMessage: 'Data de nascimento e obrigatoria para cadastrar o voluntario.'
+        });
+        if (!birthDateValidation.ok || !birthDateValidation.value) {
+          return NextResponse.json({ error: birthDateValidation.error }, { status: 400 });
+        }
+        const normalizedBirthDate = birthDateValidation.value;
 
         const normalizedUsername = String(username).trim().toLowerCase();
         if (!/^[a-z0-9._-]+$/.test(normalizedUsername)) {
@@ -181,7 +254,8 @@ export async function POST(request: Request) {
           user_id: created.user.id,
           name,
           role: persistedRole,
-          username: normalizedUsername
+          username: normalizedUsername,
+          birth_date: normalizedBirthDate
         });
 
         if (profileInsertError) {
@@ -522,6 +596,45 @@ export async function POST(request: Request) {
     }
 
       // ------------------------------------------------------
+      case 'updateBirthDate': {
+        const normalizedUserId = normalizeUuid(body?.userId);
+        if (!normalizedUserId) {
+          return NextResponse.json({ error: 'Informe um usuario valido.' }, { status: 400 });
+        }
+
+        const birthDateValidation = validateBirthDateInput(body?.birthDate ?? null, {
+          required: false
+        });
+
+        if (!birthDateValidation.ok) {
+          return NextResponse.json({ error: birthDateValidation.error }, { status: 400 });
+        }
+
+        const { error: updateError } = await supabaseAdmin
+          .from('profiles')
+          .update({ birth_date: birthDateValidation.value })
+          .eq('user_id', normalizedUserId)
+          .select('user_id')
+          .single();
+
+        if (updateError) {
+          if (isBirthDateColumnMissing(updateError.message)) {
+            return NextResponse.json(
+              {
+                error:
+                  'O campo de data de nascimento nao existe neste banco. Execute a migration que adiciona birth_date em profiles.'
+              },
+              { status: 400 }
+            );
+          }
+          const statusCode = updateError.code === 'PGRST116' ? 404 : 400;
+          return NextResponse.json({ error: updateError.message }, { status: statusCode });
+        }
+
+        return NextResponse.json({ success: true, birthDate: birthDateValidation.value });
+      }
+
+      // ------------------------------------------------------
       case 'updateRole': {
         const { userId, role } = body;
         const normalizedUserId = typeof userId === 'string' ? userId.trim() : '';
@@ -580,3 +693,4 @@ export async function POST(request: Request) {
     );
   }
 }
+

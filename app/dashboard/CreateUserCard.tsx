@@ -24,10 +24,13 @@ type UserLookup = {
 
 const MIN_FAMILY_SEARCH_LENGTH = 2;
 const MIN_FAMILY_NAME_LENGTH = 3;
+const BIRTH_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_MEMBER_AGE_YEARS = 110;
 
 export default function CreateUserCard({ canManageUsers }: Props) {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [role, setRole] = useState<"MEMBER" | "LEADER" | "ADMIN">("MEMBER");
   const [ministries, setMinistries] = useState<MinistryOption[]>([]);
   const [selectedMinistryIds, setSelectedMinistryIds] = useState<string[]>([]);
@@ -45,6 +48,7 @@ export default function CreateUserCard({ canManageUsers }: Props) {
   const [selectedFamilyMembers, setSelectedFamilyMembers] = useState<UserLookup[]>([]);
   const [familyName, setFamilyName] = useState("");
   const familySearchController = useRef<AbortController | null>(null);
+  const maxBirthDate = useMemo(() => new Date().toISOString().split("T")[0], []);
 
   useEffect(() => {
     async function loadMinistries() {
@@ -288,6 +292,46 @@ function toggleLeaderForMinistry(ministryId: string) {
       return;
     }
 
+    const normalizedBirthDate = birthDate.trim();
+    if (!normalizedBirthDate) {
+      setError("Informe a data de nascimento do voluntario.");
+      setLoading(false);
+      return;
+    }
+    if (!BIRTH_DATE_REGEX.test(normalizedBirthDate)) {
+      setError("Use o formato AAAA-MM-DD para a data de nascimento.");
+      setLoading(false);
+      return;
+    }
+    const [yearStr, monthStr, dayStr] = normalizedBirthDate.split("-");
+    const year = Number(yearStr);
+    const month = Number(monthStr);
+    const day = Number(dayStr);
+    const birthDateUtc = new Date(Date.UTC(year, month - 1, day));
+    if (
+      Number.isNaN(birthDateUtc.valueOf()) ||
+      birthDateUtc.getUTCFullYear() !== year ||
+      birthDateUtc.getUTCMonth() + 1 !== month ||
+      birthDateUtc.getUTCDate() !== day
+    ) {
+      setError("Data de nascimento invalida.");
+      setLoading(false);
+      return;
+    }
+    const today = new Date();
+    const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+    if (birthDateUtc.getTime() > todayUtc) {
+      setError("Data de nascimento nao pode estar no futuro.");
+      setLoading(false);
+      return;
+    }
+    const computedAge = today.getUTCFullYear() - year;
+    if (computedAge > MAX_MEMBER_AGE_YEARS) {
+      setError("Confirme a data de nascimento. Idade maxima permitida foi excedida.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const familyMemberIds = selectedFamilyMembers.map((member) => member.user_id);
       const payload: Record<string, unknown> = {
@@ -306,6 +350,8 @@ function toggleLeaderForMinistry(ministryId: string) {
         };
       }
 
+      payload.birthDate = normalizedBirthDate;
+
       const response = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -320,6 +366,7 @@ function toggleLeaderForMinistry(ministryId: string) {
         );
         setName("");
         setUsername("");
+        setBirthDate("");
         setRole("MEMBER");
         setSelectedMinistryIds([]);
         setLeaderMinistryIds([]);
@@ -365,6 +412,17 @@ function toggleLeaderForMinistry(ministryId: string) {
             type="text"
             value={username}
             onChange={(event) => setUsername(event.target.value)}
+            className="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 focus:border-indigo-300/60 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+            required
+          />
+        </label>
+        <label className="flex flex-col gap-2 text-sm text-indigo-100/80">
+          Data de nascimento
+          <input
+            type="date"
+            value={birthDate}
+            onChange={(event) => setBirthDate(event.target.value)}
+            max={maxBirthDate}
             className="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 focus:border-indigo-300/60 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
             required
           />
