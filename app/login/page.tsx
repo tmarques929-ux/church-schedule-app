@@ -77,9 +77,6 @@ export default function LoginPage() {
               </span>
             </p>
             <div className="flex flex-wrap gap-3 text-sm text-indigo-100/80">
-              <span className="inline-flex items-center gap-2 rounded-full border border-indigo-200/30 bg-indigo-500/20 px-4 py-2 font-semibold">
-                {t("hero.pillServe")}
-              </span>
               <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2">
                 {t("hero.pillSupport")}
               </span>
