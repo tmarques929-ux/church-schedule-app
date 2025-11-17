@@ -1,9 +1,7 @@
-export default function NotFound() {
+Ôªøexport default function NotFound() {
   return (
-    <div style={{ padding: 20 }}>
-      <h1>P·gina n„o encontrada</h1>
-      <p>A p·gina solicitada n„o existe.</p>
+    <div>
+      <h1>P√°gina n√£o encontrada</h1>
     </div>
   );
 }
-
