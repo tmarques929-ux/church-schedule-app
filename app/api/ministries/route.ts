@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@lib/supabaseServer";
 import { ensureAdmin, ensureAuthenticated } from "../_utils/ensureAdmin";
+import { ensureScheduleManager } from "../_utils/ensureScheduleManager";
 
 type BaseMinistry = {
   id: string;
@@ -27,15 +28,37 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const includeMembers = url.searchParams.get("includeMembers") === "true";
 
-  const authResult = includeMembers ? await ensureAdmin() : await ensureAuthenticated();
-  if ("errorResponse" in authResult) {
-    return authResult.errorResponse;
+  let managerContext: Awaited<ReturnType<typeof ensureScheduleManager>> | null = null;
+
+  if (includeMembers) {
+    const accessResult = await ensureScheduleManager(true);
+    if ("errorResponse" in accessResult) {
+      return accessResult.errorResponse;
+    }
+    managerContext = accessResult;
+  } else {
+    const authResult = await ensureAuthenticated();
+    if ("errorResponse" in authResult) {
+      return authResult.errorResponse;
+    }
   }
 
-  const { data, error } = await supabaseAdmin
+  let ministriesQuery = supabaseAdmin
     .from("ministries")
     .select("id, name, description, active")
     .order("name", { ascending: true });
+
+  if (includeMembers && managerContext && managerContext.role !== "ADMIN") {
+    if (managerContext.leaderMinistryIds.length === 0) {
+      return NextResponse.json(
+        { error: "Nenhum ministerio encontrado para a lideranca do usuario atual." },
+        { status: 403 }
+      );
+    }
+    ministriesQuery = ministriesQuery.in("id", managerContext.leaderMinistryIds);
+  }
+
+  const { data, error } = await ministriesQuery;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

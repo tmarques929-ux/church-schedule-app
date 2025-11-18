@@ -12,8 +12,10 @@ import UpdateUsernameCard from "../UpdateUsernameCard";
 import AdminMinistryAssignmentsCard from "./AdminMinistryAssignmentsCard";
 import AdminMinistryDirectoryCard from "./AdminMinistryDirectoryCard";
 import AdminAvailabilitiesOverviewCard from "./AdminAvailabilitiesOverviewCard";
+import AdminManualAvailabilityManagerCard from "./AdminManualAvailabilityManagerCard";
 import AdminFamilyLinkCard from "./AdminFamilyLinkCard";
 import AdminInsightsDashboardCard from "./AdminInsightsDashboardCard";
+import AdminQuickNavButtons from "./AdminQuickNavButtons";
 
 export default function AdminAreaPage() {
   return (
@@ -34,9 +36,21 @@ function AdminAreaLayout({ children }: { children: ReactNode }) {
 }
 
 function AdminAreaFallback() {
+  const quickNavSections = [
+    { id: "admin-insights", label: "Insights" },
+    { id: "admin-planning", label: "Planejamento" },
+    { id: "admin-support", label: "Suporte" },
+    { id: "admin-structure", label: "Ministerios" },
+    { id: "admin-top", label: "Topo" }
+  ];
+
   return (
     <>
-      <header className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-10 shadow-xl shadow-indigo-900/20 backdrop-blur">
+      <AdminQuickNavButtons sections={quickNavSections} />
+      <header
+        id="admin-top"
+        className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-10 shadow-xl shadow-indigo-900/20 backdrop-blur"
+      >
         <div className="absolute -left-16 top-1/2 h-48 w-48 -translate-y-1/2 rounded-full bg-indigo-500/20 blur-3xl" />
         <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-cyan-400/20 blur-3xl" />
         <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -141,16 +155,62 @@ async function AdminAreaContent() {
         </Link>
       </div>
 
-      <AdminInsightsDashboardCard />
+      <section id="admin-insights" className="scroll-mt-24">
+        <AdminInsightsDashboardCard />
+      </section>
 
-      <ScheduleGeneratorCard />
-      <ResetPasswordCard />
-      <UpdateUsernameCard />
-      <AdminMinistryAssignmentsCard />
-      <AdminFamilyLinkCard />
-      <AdminMinistryDirectoryCard />
-      <AdminAvailabilitiesOverviewCard />
+      <section
+        id="admin-planning"
+        className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-xl shadow-indigo-900/20"
+      >
+        <header>
+          <p className="text-xs uppercase tracking-[0.4em] text-indigo-200/80">Planejamento de escalas</p>
+          <h3 className="mt-2 text-xl font-semibold text-white">Gerar e revisar periodos</h3>
+          <p className="text-sm text-indigo-100/70">
+            Utilize estes recursos para validar disponibilidades, gerar novas versões e distribuir equipes.
+          </p>
+        </header>
+        <div className="space-y-4">
+          <AdminAvailabilitiesOverviewCard />
+          <ScheduleGeneratorCard />
+          <AdminManualAvailabilityManagerCard />
+        </div>
+      </section>
+
+      <section
+        id="admin-support"
+        className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-xl shadow-indigo-900/20"
+      >
+        <header>
+          <p className="text-xs uppercase tracking-[0.4em] text-indigo-200/80">Suporte ao voluntario</p>
+          <h3 className="mt-2 text-xl font-semibold text-white">Credenciais e dados pessoais</h3>
+          <p className="text-sm text-indigo-100/70">
+            Resolva ajustes individuais como redefinir senhas, atualizar usernames ou vincular membros a familias.
+          </p>
+        </header>
+        <div className="grid gap-4 md:grid-cols-2">
+          <ResetPasswordCard />
+          <UpdateUsernameCard />
+          <AdminFamilyLinkCard />
+        </div>
+      </section>
+
+      <section
+        id="admin-structure"
+        className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-xl shadow-indigo-900/20"
+      >
+        <header>
+          <p className="text-xs uppercase tracking-[0.4em] text-indigo-200/80">Estrutura ministerial</p>
+          <h3 className="mt-2 text-xl font-semibold text-white">Diretorio e vinculos</h3>
+          <p className="text-sm text-indigo-100/70">
+            Mantenha a base de ministerios organizada, atualizando membros, liderancas e contatos.
+          </p>
+        </header>
+        <div className="space-y-4">
+          <AdminMinistryAssignmentsCard />
+          <AdminMinistryDirectoryCard />
+        </div>
+      </section>
     </>
   );
 }
-

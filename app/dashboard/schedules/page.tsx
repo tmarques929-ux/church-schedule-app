@@ -18,6 +18,58 @@ interface ScheduleCelebrationDownload {
   location: string | null;
 }
 
+interface AssignmentRow {
+  assignmentId: string;
+  celebrationId: string | null;
+  date: string | null;
+  location: string | null;
+  ministryId: string | null;
+  ministry: string | null;
+  roleId: string | null;
+  role: string | null;
+  memberId: string | null;
+  memberName: string | null;
+  member: string | null;
+  locked: boolean;
+  isPlaceholder: boolean;
+  placeholderReason: string | null;
+}
+
+type ScheduleDetail = {
+  assignments: AssignmentRow[];
+  references?: {
+    celebrations?: Array<{
+      id: string;
+      starts_at: string | null;
+      location: string | null;
+      notes: string | null;
+    }>;
+  };
+};
+
+type MinistryDirectoryMember = {
+  userId: string;
+  name: string;
+  username: string | null;
+};
+
+type MinistryDirectoryEntry = {
+  id: string;
+  name: string;
+  active: boolean;
+  members: MinistryDirectoryMember[];
+};
+
+type AssignmentDraft = {
+  memberId?: string;
+  placeholderReason?: string;
+};
+
+type ManualAlert = {
+  type: "success" | "error";
+  message: string;
+};
+
 const statusStyles: Record<string, string> = {
   draft: 'bg-yellow-500/20 text-yellow-200 border-yellow-300/40',
   published: 'bg-emerald-500/20 text-emerald-100 border-emerald-300/40'
@@ -55,6 +107,151 @@ export default function SchedulesPage() {
     >
   >({});
   const [feedbackSubmitting, setFeedbackSubmitting] = useState<Record<string, boolean>>({});
+  const [managerRole, setManagerRole] = useState<"ADMIN" | "LEADER" | "MEMBER">("MEMBER");
+  const [managedMinistryIds, setManagedMinistryIds] = useState<string[]>([]);
+  const [managerLoading, setManagerLoading] = useState(true);
+  const [managerError, setManagerError] = useState<string | null>(null);
+  const [ministryDirectory, setMinistryDirectory] = useState<Record<string, MinistryDirectoryEntry>>({});
+  const [ministryDirectoryLoading, setMinistryDirectoryLoading] = useState(false);
+  const [ministryDirectoryError, setMinistryDirectoryError] = useState<string | null>(null);
+  const [scheduleDetails, setScheduleDetails] = useState<Record<string, ScheduleDetail>>({});
+  const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, AssignmentDraft>>({});
+  const [assignmentSaving, setAssignmentSaving] = useState<Record<string, boolean>>({});
+  const [availabilityDrafts, setAvailabilityDrafts] = useState<Record<string, string>>({});
+  const [availabilitySaving, setAvailabilitySaving] = useState<Record<string, boolean>>({});
+  const [manualAlerts, setManualAlerts] = useState<Record<string, ManualAlert | null>>({});
+  const canManageSchedules =
+    managerRole === "ADMIN" || (managerRole === "LEADER" && managedMinistryIds.length > 0);
+
+  const canManageMinistryLocally = useCallback(
+    (ministryId: string | null | undefined) => {
+      if (managerRole === "ADMIN") {
+        return true;
+      }
+      if (!ministryId) {
+        return false;
+      }
+      return managedMinistryIds.includes(ministryId);
+    },
+    [managerRole, managedMinistryIds]
+  );
+
+  const resolveMemberDisplayName = useCallback(
+    (name: string | null | undefined, username: string | null | undefined) => {
+      const normalizedUsername = username?.trim().toLowerCase();
+      if (normalizedUsername === "thiagomrib") {
+        return "Thiago Marques Ribeiro";
+      }
+      const trimmed = name?.trim();
+      if (trimmed && trimmed.length > 0) {
+        return trimmed;
+      }
+      return username ?? "Voluntario";
+    },
+    []
+  );
+
+  const resolveMemberLabel = useCallback(
+    (memberId: string | null | undefined, ministryId: string | null | undefined) => {
+      if (!memberId) {
+        return "PENDENTE";
+      }
+      if (ministryId && ministryDirectory[ministryId]) {
+        const entry = ministryDirectory[ministryId].members.find(
+          (member) => member.userId === memberId
+        );
+        if (entry) {
+          return entry.name;
+        }
+      }
+      return "Voluntario";
+    },
+    [ministryDirectory]
+  );
+
+  const buildAvailabilityKey = useCallback(
+    (celebrationId: string | null | undefined, ministryId: string | null | undefined) => {
+      if (!celebrationId) {
+        return "unknown";
+      }
+      return `${celebrationId}:${ministryId ?? "none"}`;
+    },
+    []
+  );
+
+  const getManualCelebrations = useCallback(
+    (scheduleId: string) => {
+      const detail = scheduleDetails[scheduleId];
+      if (!detail) {
+        return [];
+      }
+      const celebrationLookup = new Map<
+        string,
+        { id: string; starts_at: string | null; location: string | null; notes: string | null }
+      >();
+      detail.references?.celebrations?.forEach((celebration: any) => {
+        if (celebration?.id) {
+          celebrationLookup.set(celebration.id, celebration);
+        }
+      });
+      const map = new Map<
+        string,
+        {
+          id: string;
+          date: string | null;
+          location: string | null;
+          notes: string | null;
+          ministries: Map<
+            string,
+            {
+              ministryId: string | null;
+              ministryName: string;
+              assignments: AssignmentRow[];
+            }
+          >;
+        }
+      >();
+      detail.assignments.forEach((assignment) => {
+        if (!assignment.celebrationId) {
+          return;
+        }
+        if (!map.has(assignment.celebrationId)) {
+          const reference = celebrationLookup.get(assignment.celebrationId);
+          map.set(assignment.celebrationId, {
+            id: assignment.celebrationId,
+            date: reference?.starts_at ?? assignment.date ?? null,
+            location: reference?.location ?? assignment.location ?? null,
+            notes: reference?.notes ?? null,
+            ministries: new Map()
+          });
+        }
+        const celebrationEntry = map.get(assignment.celebrationId)!;
+        const ministryKey = assignment.ministryId ?? `unknown-${assignment.celebrationId}`;
+        if (!celebrationEntry.ministries.has(ministryKey)) {
+          celebrationEntry.ministries.set(ministryKey, {
+            ministryId: assignment.ministryId,
+            ministryName: assignment.ministry ?? "Ministerio",
+            assignments: []
+          });
+        }
+        celebrationEntry.ministries.get(ministryKey)!.assignments.push(assignment);
+      });
+      return Array.from(map.values())
+        .sort((a, b) => {
+          if (!a.date || !b.date) {
+            return a.id.localeCompare(b.id);
+          }
+          return new Date(a.date).getTime() - new Date(b.date).getTime();
+        })
+        .map((entry) => ({
+          ...entry,
+          ministries: Array.from(entry.ministries.values()).sort((a, b) =>
+            a.ministryName.localeCompare(b.ministryName)
+          )
+        }));
+    },
+    [scheduleDetails]
+  );
 
   const loadSchedules = useCallback(async () => {
     const { data, error } = await supabase
@@ -72,6 +269,104 @@ export default function SchedulesPage() {
   useEffect(() => {
     loadSchedules();
   }, [loadSchedules]);
+
+  useEffect(() => {
+    async function loadManagerInfo() {
+      setManagerLoading(true);
+      setManagerError(null);
+      try {
+        const {
+          data: { user }
+        } = await supabase.auth.getUser();
+        if (!user?.id) {
+          setManagerRole("MEMBER");
+          setManagedMinistryIds([]);
+          return;
+        }
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (profileError) {
+          throw profileError;
+        }
+        const resolvedRole =
+          profile?.role === "ADMIN" || profile?.role === "LEADER" ? profile.role : "MEMBER";
+        setManagerRole(resolvedRole as "ADMIN" | "LEADER" | "MEMBER");
+        if (resolvedRole === "LEADER") {
+          const { data: ministryRows, error: ministryError } = await supabase
+            .from("member_ministries")
+            .select("ministry_id, is_leader")
+            .eq("member_id", user.id);
+          if (ministryError) {
+            throw ministryError;
+          }
+          const leaderIds =
+            ministryRows
+              ?.filter((row: any) => row.is_leader)
+              .map((row: any) => row.ministry_id)
+              .filter((id: string | null | undefined): id is string => Boolean(id)) ?? [];
+          setManagedMinistryIds(leaderIds);
+        } else {
+          setManagedMinistryIds([]);
+        }
+      } catch (caught) {
+        setManagerRole("MEMBER");
+        setManagedMinistryIds([]);
+        setManagerError(
+          caught instanceof Error ? caught.message : "Nao foi possivel carregar suas permissoes."
+        );
+      } finally {
+        setManagerLoading(false);
+      }
+    }
+    loadManagerInfo();
+  }, []);
+
+  useEffect(() => {
+    if (!canManageSchedules) {
+      setMinistryDirectory({});
+      setMinistryDirectoryError(null);
+      return;
+    }
+    async function loadDirectory() {
+      setMinistryDirectoryLoading(true);
+      setMinistryDirectoryError(null);
+      try {
+        const response = await fetch("/api/ministries?includeMembers=true");
+        const json = await response.json();
+        if (!response.ok) {
+          throw new Error(json.error || "Nao foi possivel carregar os ministerios.");
+        }
+        const entries: Record<string, MinistryDirectoryEntry> = {};
+        (json.ministries ?? []).forEach((ministry: any) => {
+          entries[ministry.id] = {
+            id: ministry.id,
+            name: ministry.name,
+            active: Boolean(ministry.active),
+            members:
+              ministry.members?.map((member: any) => ({
+                userId: member.userId,
+                name: resolveMemberDisplayName(member.name, member.username),
+                username: member.username ?? null
+              })) ?? []
+          };
+        });
+        setMinistryDirectory(entries);
+      } catch (caught) {
+        setMinistryDirectory({});
+        setMinistryDirectoryError(
+          caught instanceof Error
+            ? caught.message
+            : "Erro inesperado ao carregar ministerios."
+        );
+      } finally {
+        setMinistryDirectoryLoading(false);
+      }
+    }
+    loadDirectory();
+  }, [canManageSchedules, resolveMemberDisplayName]);
 
   const selectedPeriod = useMemo(() => {
     if (!month) return null;
@@ -338,6 +633,15 @@ export default function SchedulesPage() {
           ...prev,
           [scheduleId]: celebrationsList
         }));
+        setScheduleDetails((prev) => ({
+          ...prev,
+          [scheduleId]: {
+            assignments: Array.isArray(payload?.assignments)
+              ? (payload.assignments as AssignmentRow[])
+              : [],
+            references: payload?.references ?? {}
+          }
+        }));
       } catch (caught) {
         const message =
           caught instanceof Error ? caught.message : "Nao foi possivel carregar as celebracoes.";
@@ -432,6 +736,242 @@ export default function SchedulesPage() {
     }
   }
 
+  const handleAssignmentSave = useCallback(
+    async (scheduleId: string, assignmentId: string) => {
+      const detail = scheduleDetails[scheduleId];
+      if (!detail) {
+        setManualAlerts((prev) => ({
+          ...prev,
+          [scheduleId]: {
+            type: "error",
+            message: "Carregue as celebracoes antes de ajustar a escala."
+          }
+        }));
+        return;
+      }
+      const currentAssignment = detail.assignments.find(
+        (assignment) => assignment.assignmentId === assignmentId
+      );
+      if (!currentAssignment) {
+        return;
+      }
+      const draft = assignmentDrafts[assignmentId];
+      const nextMemberId = draft?.memberId ?? currentAssignment.memberId;
+      if (!nextMemberId) {
+        setManualAlerts((prev) => ({
+          ...prev,
+          [scheduleId]: {
+            type: "error",
+            message: "Selecione um voluntario para atribuir a funcao."
+          }
+        }));
+        return;
+      }
+      setAssignmentSaving((prev) => ({ ...prev, [assignmentId]: true }));
+      setManualAlerts((prev) => ({ ...prev, [scheduleId]: null }));
+      try {
+        const response = await fetch("/api/assignments", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assignmentId, memberId: nextMemberId })
+        });
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(json.error || "Nao foi possivel atualizar a escala.");
+        }
+        const updated = json.assignment;
+        setScheduleDetails((prev) => {
+          const current = prev[scheduleId];
+          if (!current) {
+            return prev;
+          }
+          return {
+            ...prev,
+            [scheduleId]: {
+              ...current,
+              assignments: current.assignments.map((entry) =>
+                entry.assignmentId === assignmentId
+                  ? {
+                      ...entry,
+                      memberId: updated?.member_id ?? null,
+                      memberName: resolveMemberLabel(updated?.member_id ?? null, entry.ministryId),
+                      member: resolveMemberLabel(updated?.member_id ?? null, entry.ministryId),
+                      isPlaceholder: Boolean(updated?.is_placeholder),
+                      placeholderReason: updated?.placeholder_reason ?? null
+                    }
+                  : entry
+              )
+            }
+          };
+        });
+        setManualAlerts((prev) => ({
+          ...prev,
+          [scheduleId]: { type: "success", message: "Escala atualizada com sucesso." }
+        }));
+      } catch (caught) {
+        setManualAlerts((prev) => ({
+          ...prev,
+          [scheduleId]: {
+            type: "error",
+            message:
+              caught instanceof Error
+                ? caught.message
+                : "Erro ao atualizar o assignment selecionado."
+          }
+        }));
+      } finally {
+        setAssignmentSaving((prev) => ({ ...prev, [assignmentId]: false }));
+      }
+    },
+    [assignmentDrafts, resolveMemberLabel, scheduleDetails]
+  );
+
+  const handleAssignmentPlaceholder = useCallback(
+    async (scheduleId: string, assignmentId: string) => {
+      const detail = scheduleDetails[scheduleId];
+      if (!detail) {
+        setManualAlerts((prev) => ({
+          ...prev,
+          [scheduleId]: {
+            type: "error",
+            message: "Carregue as celebracoes antes de ajustar a escala."
+          }
+        }));
+        return;
+      }
+      const currentAssignment = detail.assignments.find(
+        (assignment) => assignment.assignmentId === assignmentId
+      );
+      if (!currentAssignment) {
+        return;
+      }
+      const reason = assignmentDrafts[assignmentId]?.placeholderReason?.trim() ?? "";
+      setAssignmentSaving((prev) => ({ ...prev, [assignmentId]: true }));
+      setManualAlerts((prev) => ({ ...prev, [scheduleId]: null }));
+      try {
+        const response = await fetch("/api/assignments", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assignmentId, memberId: null, placeholderReason: reason })
+        });
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(json.error || "Nao foi possivel atualizar a escala.");
+        }
+        const updated = json.assignment;
+        setScheduleDetails((prev) => {
+          const current = prev[scheduleId];
+          if (!current) {
+            return prev;
+          }
+          return {
+            ...prev,
+            [scheduleId]: {
+              ...current,
+              assignments: current.assignments.map((entry) =>
+                entry.assignmentId === assignmentId
+                  ? {
+                      ...entry,
+                      memberId: null,
+                      memberName: null,
+                      member: updated?.placeholder_reason
+                        ? `PENDENTE (${updated.placeholder_reason})`
+                        : "PENDENTE",
+                      isPlaceholder: true,
+                      placeholderReason: (updated?.placeholder_reason ?? reason) || null
+                    }
+                  : entry
+              )
+            }
+          };
+        });
+        setManualAlerts((prev) => ({
+          ...prev,
+          [scheduleId]: { type: "success", message: "Assignment marcado como pendente." }
+        }));
+      } catch (caught) {
+        setManualAlerts((prev) => ({
+          ...prev,
+          [scheduleId]: {
+            type: "error",
+            message:
+              caught instanceof Error
+                ? caught.message
+                : "Erro ao marcar assignment como pendente."
+          }
+        }));
+      } finally {
+        setAssignmentSaving((prev) => ({ ...prev, [assignmentId]: false }));
+      }
+    },
+    [assignmentDrafts, scheduleDetails]
+  );
+
+  const handleManualAvailability = useCallback(
+    async (
+      scheduleId: string,
+      celebrationId: string | null | undefined,
+      ministryId: string | null | undefined,
+      available: boolean
+    ) => {
+      if (!celebrationId) {
+        setManualAlerts((prev) => ({
+          ...prev,
+          [scheduleId]: {
+            type: "error",
+            message: "Selecione uma celebracao valida para registrar disponibilidade."
+          }
+        }));
+        return;
+      }
+      const key = buildAvailabilityKey(celebrationId, ministryId);
+      const memberId = availabilityDrafts[key];
+      if (!memberId) {
+        setManualAlerts((prev) => ({
+          ...prev,
+          [scheduleId]: {
+            type: "error",
+            message: "Escolha um membro antes de registrar disponibilidade manual."
+          }
+        }));
+        return;
+      }
+      setAvailabilitySaving((prev) => ({ ...prev, [key]: true }));
+      setManualAlerts((prev) => ({ ...prev, [scheduleId]: null }));
+      try {
+        const response = await fetch("/api/availabilities/manage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ celebrationId, memberId, available })
+        });
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(json.error || "Nao foi possivel registrar a disponibilidade.");
+        }
+        setManualAlerts((prev) => ({
+          ...prev,
+          [scheduleId]: {
+            type: "success",
+            message: "Disponibilidade registrada com sucesso."
+          }
+        }));
+      } catch (caught) {
+        setManualAlerts((prev) => ({
+          ...prev,
+          [scheduleId]: {
+            type: "error",
+            message:
+              caught instanceof Error
+                ? caught.message
+                : "Erro ao registrar disponibilidade manual."
+          }
+        }));
+      } finally {
+        setAvailabilitySaving((prev) => ({ ...prev, [key]: false }));
+      }
+    },
+    [availabilityDrafts, buildAvailabilityKey]
+  );
     return (
       <div className="min-h-screen bg-slate-950 bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 text-slate-100">
       <div className="mx-auto flex max-w-6xl flex-col gap-10 px-6 py-12">
@@ -554,6 +1094,14 @@ export default function SchedulesPage() {
                             category: 'other' as const,
                             severity: 'medium' as const
                           };
+                        const manualGroups = getManualCelebrations(schedule.id)
+                          .map((group) => ({
+                            ...group,
+                            ministries: group.ministries.filter((ministry) =>
+                              canManageMinistryLocally(ministry.ministryId)
+                            )
+                          }))
+                          .filter((group) => group.ministries.length > 0);
                         return (
                           <article
                             key={schedule.id}
@@ -625,35 +1173,338 @@ export default function SchedulesPage() {
                               </button>
                             </footer>
                             {expandedScheduleId === schedule.id && (
-                              <div className="mt-3 w-full rounded-2xl border border-indigo-300/30 bg-indigo-500/10 p-4 text-xs text-sky-100/80 sm:text-sm">
-                                {loadingCelebrations[schedule.id] ? (
-                                  <p>Carregando celebracoes...</p>
-                                ) : celebrationsError[schedule.id] ? (
-                                  <p className="text-rose-200">{celebrationsError[schedule.id]}</p>
-                                ) : (scheduleCelebrations[schedule.id] ?? []).length > 0 ? (
-                                  <div className="flex flex-col gap-3">
-                                    {scheduleCelebrations[schedule.id].map((celebration) => (
-                                      <a
-                                        key={celebration.id}
-                                        href={`/api/schedules/${schedule.id}?format=pdf&celebrationId=${celebration.id}`}
-                                        className="flex flex-col gap-1 rounded-xl border border-white/10 bg-white/10 px-4 py-3 transition hover:bg-white/20"
+                              <>
+                                <div className="mt-3 w-full rounded-2xl border border-indigo-300/30 bg-indigo-500/10 p-4 text-xs text-sky-100/80 sm:text-sm">
+                                  {loadingCelebrations[schedule.id] ? (
+                                    <p>Carregando celebracoes...</p>
+                                  ) : celebrationsError[schedule.id] ? (
+                                    <p className="text-rose-200">{celebrationsError[schedule.id]}</p>
+                                  ) : (scheduleCelebrations[schedule.id] ?? []).length > 0 ? (
+                                    <div className="flex flex-col gap-3">
+                                      {scheduleCelebrations[schedule.id].map((celebration) => (
+                                        <a
+                                          key={celebration.id}
+                                          href={`/api/schedules/${schedule.id}?format=pdf&celebrationId=${celebration.id}`}
+                                          className="flex flex-col gap-1 rounded-xl border border-white/10 bg-white/10 px-4 py-3 transition hover:bg-white/20"
+                                        >
+                                          <span className="text-sm font-semibold text-white">
+                                            {celebration.title}
+                                          </span>
+                                          <span>{celebration.dateLabel}</span>
+                                          <span className="text-xs text-sky-100/70">
+                                            {celebration.location
+                                              ? `Local: ${celebration.location}`
+                                              : "Local nao informado"}
+                                          </span>
+                                        </a>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p>Nenhuma celebracao encontrada para esta escala.</p>
+                                  )}
+                                </div>
+                                {canManageSchedules && (
+                                  <div className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-900/60 p-4 text-xs text-sky-100/80 sm:text-sm">
+                                    <div className="flex flex-col gap-1">
+                                      <p className="text-sm font-semibold text-white">
+                                        Ajustes manuais
+                                      </p>
+                                      <p className="text-[11px] text-sky-100/70">
+                                        Atualize atribuicoes e disponibilidades sem depender apenas das
+                                        respostas automaticas dos membros.
+                                      </p>
+                                    </div>
+                                    {manualAlerts[schedule.id] && (
+                                      <p
+                                        className={`mt-3 rounded-xl border px-3 py-2 text-xs ${
+                                          manualAlerts[schedule.id]?.type === "success"
+                                            ? "border-emerald-300/30 bg-emerald-500/10 text-emerald-100"
+                                            : "border-rose-300/30 bg-rose-500/10 text-rose-100"
+                                        }`}
                                       >
-                                        <span className="text-sm font-semibold text-white">
-                                          {celebration.title}
-                                        </span>
-                                        <span>{celebration.dateLabel}</span>
-                                        <span className="text-xs text-sky-100/70">
-                                          {celebration.location
-                                            ? `Local: ${celebration.location}`
-                                            : "Local nao informado"}
-                                        </span>
-                                      </a>
-                                    ))}
+                                        {manualAlerts[schedule.id]?.message}
+                                      </p>
+                                    )}
+                                    {managerLoading ? (
+                                      <p className="mt-3 text-xs text-sky-100/70">
+                                        Verificando suas permissoes...
+                                      </p>
+                                    ) : managerError ? (
+                                      <p className="mt-3 text-xs text-rose-200">{managerError}</p>
+                                    ) : loadingCelebrations[schedule.id] ? (
+                                      <p className="mt-3 text-xs text-sky-100/70">
+                                        Carregando detalhes da escala...
+                                      </p>
+                                    ) : ministryDirectoryLoading ? (
+                                      <p className="mt-3 text-xs text-sky-100/70">
+                                        Carregando lista de ministerios...
+                                      </p>
+                                    ) : ministryDirectoryError ? (
+                                      <p className="mt-3 text-xs text-rose-200">
+                                        {ministryDirectoryError}
+                                      </p>
+                                    ) : !scheduleDetails[schedule.id] ? (
+                                      <p className="mt-3 text-xs text-sky-100/70">
+                                        Expanda uma celebracao para carregar os dados antes de editar.
+                                      </p>
+                                    ) : manualGroups.length === 0 ? (
+                                      <p className="mt-3 text-xs text-sky-100/70">
+                                        Nenhum ministerio deste periodo esta sob sua lideranca. Caso
+                                        precise ajustar outros ministerios, fale com a administracao.
+                                      </p>
+                                    ) : (
+                                      <div className="mt-4 space-y-4">
+                                        {manualGroups.map((celebration) => {
+                                          const celebrationDate = celebration.date
+                                            ? new Date(celebration.date).toLocaleString("pt-BR", {
+                                                dateStyle: "full",
+                                                timeStyle: "short"
+                                              })
+                                            : "Data a definir";
+                                          return (
+                                            <div
+                                              key={celebration.id}
+                                              className="rounded-xl border border-white/10 bg-slate-950/30 p-4"
+                                            >
+                                              <div className="flex flex-col gap-1 text-xs text-sky-100/70">
+                                                <p className="text-sm font-semibold text-white">
+                                                  {celebrationDate}
+                                                </p>
+                                                {celebration.location && (
+                                                  <span>Local: {celebration.location}</span>
+                                                )}
+                                                {celebration.notes && (
+                                                  <span>Notas: {celebration.notes}</span>
+                                                )}
+                                              </div>
+                                              <div className="mt-3 space-y-4">
+                                                {celebration.ministries.map((ministry) => {
+                                                  const directory =
+                                                    ministry.ministryId &&
+                                                    ministryDirectory[ministry.ministryId];
+                                                  return (
+                                                    <div
+                                                      key={`${celebration.id}-${ministry.ministryId ?? "unknown"}`}
+                                                      className="rounded-xl border border-white/10 bg-slate-900/70 p-3"
+                                                    >
+                                                      <div className="flex flex-col gap-1">
+                                                        <p className="text-sm font-semibold text-white">
+                                                          {ministry.ministryName}
+                                                        </p>
+                                                        <span className="text-[11px] text-sky-100/60">
+                                                          {directory?.members.length
+                                                            ? `${directory.members.length} membros vinculados`
+                                                            : "Nenhum membro carregado para este ministerio."}
+                                                        </span>
+                                                      </div>
+                                                      <div className="mt-3 space-y-3">
+                                                        {ministry.assignments.map((assignment) => (
+                                                          <div
+                                                            key={assignment.assignmentId}
+                                                            className="rounded-lg border border-white/10 bg-white/5 p-3"
+                                                          >
+                                                            <div className="flex flex-col gap-1 text-xs text-sky-100/70">
+                                                              <span className="text-sm font-semibold text-white">
+                                                                {assignment.role ?? "Funcao"}
+                                                              </span>
+                                                              <span>
+                                                                Atual:{" "}
+                                                                {assignment.isPlaceholder
+                                                                  ? assignment.placeholderReason
+                                                                    ? `PENDENTE (${assignment.placeholderReason})`
+                                                                    : "PENDENTE"
+                                                                  : assignment.memberName ?? assignment.member ?? "Sem voluntario"}
+                                                              </span>
+                                                            </div>
+                                                            <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center">
+                                                              <select
+                                                                value={
+                                                                  assignmentDrafts[assignment.assignmentId]?.memberId ??
+                                                                  assignment.memberId ??
+                                                                  ""
+                                                                }
+                                                                onChange={(event) =>
+                                                                  setAssignmentDrafts((prev) => ({
+                                                                    ...prev,
+                                                                    [assignment.assignmentId]: {
+                                                                      ...(prev[assignment.assignmentId] ?? {}),
+                                                                      memberId: event.target.value
+                                                                    }
+                                                                  }))
+                                                                }
+                                                                className="w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white focus:border-indigo-300/60 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+                                                              >
+                                                                <option value="">
+                                                                  Selecione um voluntario
+                                                                </option>
+                                                                {directory?.members.map((member) => (
+                                                                  <option key={member.userId} value={member.userId}>
+                                                                    {member.name}
+                                                                  </option>
+                                                                ))}
+                                                              </select>
+                                                              <button
+                                                                type="button"
+                                                                disabled={assignmentSaving[assignment.assignmentId]}
+                                                                onClick={() =>
+                                                                  handleAssignmentSave(schedule.id, assignment.assignmentId)
+                                                                }
+                                                                className="inline-flex items-center justify-center rounded-full border border-emerald-300/40 bg-emerald-500/70 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/10 disabled:text-emerald-100/60"
+                                                              >
+                                                                {assignmentSaving[assignment.assignmentId]
+                                                                  ? "Salvando..."
+                                                                  : "Salvar"}
+                                                              </button>
+                                                            </div>
+                                                            <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center">
+                                                              <input
+                                                                type="text"
+                                                                value={
+                                                                  assignmentDrafts[assignment.assignmentId]?.placeholderReason ?? ""
+                                                                }
+                                                                onChange={(event) =>
+                                                                  setAssignmentDrafts((prev) => ({
+                                                                    ...prev,
+                                                                    [assignment.assignmentId]: {
+                                                                      ...(prev[assignment.assignmentId] ?? {}),
+                                                                      placeholderReason: event.target.value
+                                                                    }
+                                                                  }))
+                                                                }
+                                                                placeholder="Motivo opcional (ex: aguardando confirmacao)"
+                                                                className="w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white focus:border-indigo-300/60 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+                                                              />
+                                                              <button
+                                                                type="button"
+                                                                disabled={assignmentSaving[assignment.assignmentId]}
+                                                                onClick={() =>
+                                                                  handleAssignmentPlaceholder(
+                                                                    schedule.id,
+                                                                    assignment.assignmentId
+                                                                  )
+                                                                }
+                                                                className="inline-flex items-center justify-center rounded-full border border-amber-300/40 bg-amber-500/70 px-4 py-2 text-xs font-semibold text-white transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/10 disabled:text-amber-100/60"
+                                                              >
+                                                                {assignmentSaving[assignment.assignmentId]
+                                                                  ? "Atualizando..."
+                                                                  : "Marcar pendente"}
+                                                              </button>
+                                                            </div>
+                                                          </div>
+                                                        ))}
+                                                      </div>
+                                                      <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
+                                                        <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-sky-100/80">
+                                                          Disponibilidade manual
+                                                        </p>
+                                                        <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center">
+                                                          <select
+                                                            value={
+                                                              availabilityDrafts[
+                                                                buildAvailabilityKey(
+                                                                  celebration.id,
+                                                                  ministry.ministryId
+                                                                )
+                                                              ] ?? ""
+                                                            }
+                                                            onChange={(event) =>
+                                                              setAvailabilityDrafts((prev) => ({
+                                                                ...prev,
+                                                                [buildAvailabilityKey(
+                                                                  celebration.id,
+                                                                  ministry.ministryId
+                                                                )]: event.target.value
+                                                              }))
+                                                            }
+                                                            className="w-full rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white focus:border-indigo-300/60 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+                                                          >
+                                                            <option value="">
+                                                              Escolha o membro para registrar manualmente
+                                                            </option>
+                                                            {directory?.members.map((member) => (
+                                                              <option key={member.userId} value={member.userId}>
+                                                                {member.name}
+                                                              </option>
+                                                            ))}
+                                                          </select>
+                                                          <div className="flex flex-wrap gap-2">
+                                                            <button
+                                                              type="button"
+                                                              disabled={
+                                                                availabilitySaving[
+                                                                  buildAvailabilityKey(
+                                                                    celebration.id,
+                                                                    ministry.ministryId
+                                                                  )
+                                                                ]
+                                                              }
+                                                              onClick={() =>
+                                                                handleManualAvailability(
+                                                                  schedule.id,
+                                                                  celebration.id,
+                                                                  ministry.ministryId,
+                                                                  true
+                                                                )
+                                                              }
+                                                              className="inline-flex items-center justify-center rounded-full border border-emerald-300/40 bg-emerald-500/70 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/10 disabled:text-emerald-100/60"
+                                                            >
+                                                              {availabilitySaving[
+                                                                buildAvailabilityKey(
+                                                                  celebration.id,
+                                                                  ministry.ministryId
+                                                                )
+                                                              ]
+                                                                ? "Enviando..."
+                                                                : "Disponivel"}
+                                                            </button>
+                                                            <button
+                                                              type="button"
+                                                              disabled={
+                                                                availabilitySaving[
+                                                                  buildAvailabilityKey(
+                                                                    celebration.id,
+                                                                    ministry.ministryId
+                                                                  )
+                                                                ]
+                                                              }
+                                                              onClick={() =>
+                                                                handleManualAvailability(
+                                                                  schedule.id,
+                                                                  celebration.id,
+                                                                  ministry.ministryId,
+                                                                  false
+                                                                )
+                                                              }
+                                                              className="inline-flex items-center justify-center rounded-full border border-rose-300/40 bg-rose-500/70 px-4 py-2 text-xs font-semibold text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/10 disabled:text-rose-100/60"
+                                                            >
+                                                              {availabilitySaving[
+                                                                buildAvailabilityKey(
+                                                                  celebration.id,
+                                                                  ministry.ministryId
+                                                                )
+                                                              ]
+                                                                ? "Enviando..."
+                                                                : "Indisponivel"}
+                                                            </button>
+                                                          </div>
+                                                        </div>
+                                                        <p className="mt-1 text-[11px] text-sky-100/60">
+                                                          Use esta opcao quando um membro confirma ou rejeita fora do
+                                                          painel (ex: telefone ou conversa presencial).
+                                                        </p>
+                                                      </div>
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
                                   </div>
-                                ) : (
-                                  <p>Nenhuma celebracao encontrada para esta escala.</p>
                                 )}
-                              </div>
+                              </>
                             )}
                             {feedbackExpandedId === schedule.id && (
                               <div className="mt-3 w-full rounded-2xl border border-emerald-300/30 bg-emerald-500/10 p-4 text-xs text-emerald-100/80 sm:text-sm">

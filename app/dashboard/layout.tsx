@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createServerComponentSupabaseClient } from "@supabase/auth-helpers-nextjs";
 import LogoutButton from "./LogoutButton";
+import ScrollToTopButton from "./ScrollToTopButton";
 
 type DashboardLayoutProps = {
   children: React.ReactNode;
@@ -41,6 +42,12 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
           </div>
           <div className="flex items-center gap-3">
             <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 font-semibold text-indigo-100 transition hover:bg-white/20"
+            >
+              Voltar ao painel
+            </Link>
+            <Link
               href="/dashboard/my-ministries"
               className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 font-semibold text-indigo-100 transition hover:bg-white/20"
             >
@@ -53,6 +60,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
       <main id="main-content" tabIndex={-1} className="pt-20 md:pt-24">
         {children}
       </main>
+      <ScrollToTopButton />
     </div>
   );
 }
