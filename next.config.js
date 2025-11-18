@@ -1,4 +1,3 @@
-const createNextIntlPlugin = require("next-intl/plugin");
 const withPWA = require("next-pwa")({
   dest: "public",
   register: true,
@@ -9,13 +8,9 @@ const withPWA = require("next-pwa")({
     document: "/offline"
   }
 });
-const withNextIntl = createNextIntlPlugin("./next-intl.config.js");
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    cacheComponents: true
-  },
+  cacheComponents: true,
   typescript: {
     ignoreBuildErrors: true
   },
@@ -24,4 +19,4 @@ const nextConfig = {
   }
 };
 
-module.exports = withNextIntl(withPWA(nextConfig));
+module.exports = withPWA(nextConfig);
