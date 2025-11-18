@@ -2,8 +2,8 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useLocale, useTranslations } from "next-intl";
 import { localeLabels, supportedLocales } from "@lib/i18n";
+import { useI18nLocale, useI18nTranslations } from "@components/I18nProvider";
 
 type LocaleSwitcherProps = {
   size?: "sm" | "md";
@@ -22,8 +22,8 @@ const sizeMap = {
 } as const;
 
 export default function LocaleSwitcher({ size = "md", className = "" }: LocaleSwitcherProps) {
-  const t = useTranslations("common.locale");
-  const locale = useLocale();
+  const t = useI18nTranslations("common.locale");
+  const locale = useI18nLocale();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 

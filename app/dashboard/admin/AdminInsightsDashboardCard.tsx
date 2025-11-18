@@ -13,7 +13,7 @@ import {
   PointElement,
   Tooltip
 } from "chart.js";
-import { useLocale, useTranslations } from "next-intl";
+import { useI18nLocale, useI18nTranslations } from "@components/I18nProvider";
 
 Chart.register(BarElement, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
@@ -42,8 +42,8 @@ type AdminStatsResponse = {
 };
 
 export default function AdminInsightsDashboardCard() {
-  const t = useTranslations("admin.dashboard");
-  const locale = useLocale();
+  const t = useI18nTranslations("admin.dashboard");
+  const locale = useI18nLocale();
   const [stats, setStats] = useState<AdminStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
 import { supabase } from "@lib/supabaseClient";
+import { useI18nTranslations } from "@components/I18nProvider";
 
 const USERNAME_REGEX = /^[a-z0-9._-]+$/;
 
 export default function LoginPage() {
   const router = useRouter();
-  const t = useTranslations("login");
+  const t = useI18nTranslations("login");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);

@@ -2,8 +2,8 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Inter } from "next/font/google";
-import { NextIntlClientProvider } from "next-intl";
 import { getServerMessages } from "@lib/i18n/server";
+import { I18nProvider } from "@components/I18nProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -35,9 +35,9 @@ async function IntlLayout({ children }: { children: React.ReactNode }) {
         <a href="#main-content" className="skip-link">
           {skipToContentLabel}
         </a>
-        <NextIntlClientProvider locale={locale} messages={messages}>
+        <I18nProvider locale={locale} messages={messages}>
           {children}
-        </NextIntlClientProvider>
+        </I18nProvider>
       </body>
     </html>
   );

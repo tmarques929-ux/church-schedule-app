@@ -8,6 +8,7 @@ const withPWA = require("next-pwa")({
     document: "/offline"
   }
 });
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   cacheComponents: true,
